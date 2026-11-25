@@ -1,0 +1,109 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'mahmoudmohamedhh999@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidStoreSettings(data) {
+      return data.keys().hasAll(['isOpen', 'openTime', 'closeTime', 'customNote', 'deliveryFee', 'updatedAt'])
+        && data.keys().hasOnly(['isOpen', 'openTime', 'closeTime', 'customNote', 'deliveryFee', 'heroEyebrow', 'heroTitle', 'heroSubtitle', 'updatedAt'])
+        && data.isOpen is bool
+        && data.openTime is string && data.openTime.size() >= 1 && data.openTime.size() <= 32
+        && data.closeTime is string && data.closeTime.size() >= 1 && data.closeTime.size() <= 32
+        && data.customNote is string && data.customNote.size() <= 500
+        && (data.deliveryFee is int || data.deliveryFee is float) && data.deliveryFee >= 0 && data.deliveryFee <= 100000
+        && (!('heroEyebrow' in data) || (data.heroEyebrow is string && data.heroEyebrow.size() <= 120))
+        && (!('heroTitle' in data) || (data.heroTitle is string && data.heroTitle.size() <= 200))
+        && (!('heroSubtitle' in data) || (data.heroSubtitle is string && data.heroSubtitle.size() <= 300))
+        && data.updatedAt is string && data.updatedAt.size() >= 10 && data.updatedAt.size() <= 64;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll([
+          'orderCode', 'customerName', 'customerPhone', 'deliveryAddress',
+          'paymentMethod', 'subtotal', 'deliveryFee', 'grandTotal', 'totalProfit',
+          'status', 'isPaid', 'isArchived', 'isDeletedFromArchive', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'orderCode', 'customerName', 'customerPhone', 'deliveryAddress', 'deliveryNotes',
+          'paymentMethod', 'senderWalletPhone', 'subtotal', 'deliveryFee', 'grandTotal',
+          'totalProfit', 'status', 'rejectionReason', 'isPaid', 'isArchived',
+          'isDeletedFromArchive', 'createdAt', 'updatedAt', 'completedAt'
+        ])
+        && data.orderCode is string && data.orderCode.size() >= 4 && data.orderCode.size() <= 32 && data.orderCode.matches('^ORD-[0-9]+$')
+        && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120
+        && data.customerPhone is string && data.customerPhone.size() >= 3 && data.customerPhone.size() <= 32
+        && data.deliveryAddress is string && data.deliveryAddress.size() >= 3 && data.deliveryAddress.size() <= 400
+        && (!('deliveryNotes' in data) || (data.deliveryNotes is string && data.deliveryNotes.size() <= 400))
+        && data.paymentMethod is string && data.paymentMethod.size() >= 2 && data.paymentMethod.size() <= 64
+        && (!('senderWalletPhone' in data) || (data.senderWalletPhone is string && data.senderWalletPhone.size() <= 32))
+        && (data.subtotal is int || data.subtotal is float) && data.subtotal >= 0
+        && (data.deliveryFee is int || data.deliveryFee is float) && data.deliveryFee >= 0
+        && (data.grandTotal is int || data.grandTotal is float) && data.grandTotal >= 0
+        && (data.totalProfit is int || data.totalProfit is float)
+        && data.status is string && data.status in ['Pending', 'In Progress', 'Finished', 'Rejected']
+        && (!('rejectionReason' in data) || (data.rejectionReason is string && data.rejectionReason.size() <= 400))
+        && data.isPaid is bool
+        && data.isArchived is bool
+        && data.isDeletedFromArchive is bool
+        && data.createdAt is string && data.createdAt.size() >= 10 && data.createdAt.size() <= 64
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64))
+        && (!('completedAt' in data) || (data.completedAt is string && data.completedAt.size() <= 64));
+    }
+
+    match /test/{docId} {
+      allow get: if isValidId(docId);
+      allow list, create, update, delete: if false;
+    }
+
+    match /storeSettings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if false;
+      allow create: if isAdmin() && isValidId(settingId) && isValidStoreSettings(incoming());
+      allow update: if isAdmin() && isValidId(settingId) && isValidStoreSettings(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isOpen', 'openTime', 'closeTime', 'customNote', 'deliveryFee', 'heroEyebrow', 'heroTitle', 'heroSubtitle', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /orders/{orderId} {
+      allow get: if isAdmin() && isValidId(orderId);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(orderId) && isValidOrder(incoming());
+      allow update: if isAdmin() && isValidId(orderId) && isValidOrder(incoming())
+        && incoming().orderCode == existing().orderCode
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason', 'isPaid', 'isArchived', 'isDeletedFromArchive', 'updatedAt', 'completedAt']);
+      allow delete: if isAdmin() && isValidId(orderId);
+    }
+
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && isValidId(adminUid) && request.auth.uid == adminUid;
+      allow list, create, update, delete: if false;
+    }
+  }
+}

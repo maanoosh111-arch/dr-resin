@@ -1,0 +1,6 @@
+{
+  "name": "DR - Premium Resin Products",
+  "description": "Handcrafted walnut & deep ocean epoxy resin wall clocks, live-edge tables, collector games, and bespoke commissions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

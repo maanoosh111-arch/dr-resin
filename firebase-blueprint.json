@@ -1,0 +1,207 @@
+{
+  "entities": {
+    "StoreSettings": {
+      "title": "StoreSettings",
+      "description": "Public storefront availability, operating hours, customer announcement, and delivery fee.",
+      "type": "object",
+      "properties": {
+        "isOpen": {
+          "type": "boolean",
+          "description": "Whether the storefront is accepting orders."
+        },
+        "openTime": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Opening time display string."
+        },
+        "closeTime": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Closing time display string."
+        },
+        "customNote": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Custom storefront announcement shown when closed or in header."
+        },
+        "deliveryFee": {
+          "type": "number",
+          "description": "Home delivery fee in USD."
+        },
+        "heroEyebrow": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Hero section eyebrow label."
+        },
+        "heroTitle": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Hero section main headline."
+        },
+        "heroSubtitle": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Hero section subtitle copy."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64,
+          "description": "Last settings update timestamp."
+        }
+      },
+      "required": ["isOpen", "openTime", "closeTime", "customNote", "deliveryFee", "updatedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer purchase order containing itemized snapshot, payment verification, and fulfillment status.",
+      "type": "object",
+      "properties": {
+        "orderCode": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^ORD-[0-9]+$",
+          "description": "Human-readable order identifier."
+        },
+        "customerName": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Customer full name."
+        },
+        "customerPhone": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Customer contact telephone."
+        },
+        "deliveryAddress": {
+          "type": "string",
+          "maxLength": 400,
+          "description": "Detailed street delivery address."
+        },
+        "deliveryNotes": {
+          "type": "string",
+          "maxLength": 400,
+          "description": "Optional courier instructions."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Selected e-wallet or Cash on Delivery."
+        },
+        "senderWalletPhone": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Sender wallet phone number for electronic transfers."
+        },
+        "subtotal": {
+          "type": "number",
+          "description": "Order subtotal in USD."
+        },
+        "deliveryFee": {
+          "type": "number",
+          "description": "Applied delivery fee in USD."
+        },
+        "grandTotal": {
+          "type": "number",
+          "description": "Final grand total in USD."
+        },
+        "totalProfit": {
+          "type": "number",
+          "description": "Total net profit snapshot in USD."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Pending", "In Progress", "Finished", "Rejected"],
+          "maxLength": 32,
+          "description": "Current order lifecycle state."
+        },
+        "rejectionReason": {
+          "type": "string",
+          "maxLength": 400,
+          "description": "Mandatory reason when order is rejected."
+        },
+        "isPaid": {
+          "type": "boolean",
+          "description": "Whether payment has been confirmed."
+        },
+        "isArchived": {
+          "type": "boolean",
+          "description": "Whether order is moved to archive."
+        },
+        "isDeletedFromArchive": {
+          "type": "boolean",
+          "description": "Whether order was permanently deleted."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64,
+          "description": "Order creation timestamp."
+        }
+      },
+      "required": [
+        "orderCode",
+        "customerName",
+        "customerPhone",
+        "deliveryAddress",
+        "paymentMethod",
+        "subtotal",
+        "deliveryFee",
+        "grandTotal",
+        "totalProfit",
+        "status",
+        "isPaid",
+        "isArchived",
+        "isDeletedFromArchive",
+        "createdAt"
+      ]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized store administrator marker document keyed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"],
+          "maxLength": 16
+        }
+      },
+      "required": ["email", "role"]
+    },
+    "TestConnection": {
+      "title": "TestConnection",
+      "description": "Read-only health probe document for verifying Firestore client connectivity.",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        }
+      },
+      "required": ["ok"]
+    }
+  },
+  "firestore": {
+    "/storeSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/StoreSettings" },
+      "description": "Publicly readable store open/closed status, hours, and delivery fee."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Customer orders containing PII, strictly protected by admin authorization."
+    },
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Admin role directory for Firestore security rules."
+    },
+    "/test/{docId}": {
+      "schema": { "$ref": "#/entities/TestConnection" },
+      "description": "Connectivity check document."
+    }
+  }
+}
