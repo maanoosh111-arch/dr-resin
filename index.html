@@ -33,7 +33,7 @@
       <!-- Closed-Store Alert Banner -->
       <div id="closed-alert-bar" class="closed-alert-bar hidden" role="alert"></div>
 
-      <!-- Sticky Translucent Ocean-Glass Header -->
+      <!-- Sticky 3-Zone Architectural Header -->
       <header class="site-header">
         <div class="container-xl site-header-inner">
           <button
@@ -54,13 +54,19 @@
             </span>
           </button>
 
+          <nav class="header-nav" aria-label="Primary sections">
+            <a href="#collection" class="header-nav-link">Collection</a>
+            <a href="#craft-strip" class="header-nav-link">Craft</a>
+            <a href="#bespoke" class="header-nav-link">Bespoke</a>
+          </nav>
+
           <div class="header-search-wrap">
             <div class="search-box">
               <span id="header-search-icon" class="search-icon"></span>
               <input
                 id="search-input"
-                type="text"
-                placeholder="Search pieces, categories..."
+                type="search"
+                placeholder="Search pieces or categories..."
                 aria-label="Search resin pieces"
                 class="search-input"
               />
@@ -74,7 +80,6 @@
           </div>
 
           <div class="header-actions">
-            <span class="currency-badge">USD</span>
             <button id="open-orders-btn" type="button" class="header-orders-btn">
               <span id="header-orders-icon"></span>
               <span class="hide-xs">My Orders</span>
@@ -82,8 +87,8 @@
             <button
               id="open-bag-btn"
               type="button"
-              aria-label="Open shopping cart"
-              class="ocean-pill-btn header-bag-btn"
+              aria-label="Open shopping bag"
+              class="gallery-btn-primary header-bag-btn"
             >
               <span id="header-bag-icon"></span>
               <span class="hide-xs">Bag</span>
@@ -115,16 +120,23 @@
               </h1>
               <p id="hero-subtitle" class="hero-subtitle">DR - Premium Resin Products</p>
               <div class="hero-cta-wrap">
-                <button id="discover-pieces-btn" type="button" class="ocean-pill-btn hero-cta-btn">
+                <button
+                  id="discover-pieces-btn"
+                  type="button"
+                  class="gallery-btn-primary hero-cta-btn"
+                >
                   <span>Discover Pieces</span>
                   <span id="discover-pieces-icon"></span>
                 </button>
+                <a href="#bespoke" class="gallery-btn-secondary hero-secondary-link">
+                  Custom Commission
+                </a>
               </div>
             </div>
           </div>
 
-          <!-- 3-Card Story Strip -->
-          <div class="story-strip">
+          <!-- Architectural 3-Column Atelier Strip -->
+          <div id="craft-strip" class="story-strip">
             <button id="story-artisanship-btn" type="button" class="story-card">
               <img
                 src="/assets/images/story_artisanship_1795617284103.jpg"
@@ -132,7 +144,10 @@
                 class="story-card-img story-card-img--grayscale"
               />
               <span class="story-card-overlay"></span>
-              <span class="story-card-label">ARTISANSHIP</span>
+              <span class="story-card-meta">
+                <span class="story-card-label">Artisanship</span>
+                <span class="story-card-index tabular-nums">01</span>
+              </span>
             </button>
 
             <button id="story-material-btn" type="button" class="story-card">
@@ -142,17 +157,23 @@
                 class="story-card-img"
               />
               <span class="story-card-overlay"></span>
-              <span class="story-card-label">THE MATERIAL</span>
+              <span class="story-card-meta">
+                <span class="story-card-label">The Material</span>
+                <span class="story-card-index tabular-nums">02</span>
+              </span>
             </button>
 
             <button id="story-archive-btn" type="button" class="story-card">
               <img
                 src="/assets/images/story_archive_1795617284285.jpg"
-                alt="The Archive"
+                alt="Live Order Archive"
                 class="story-card-img"
               />
               <span class="story-card-overlay"></span>
-              <span class="story-card-label">THE ARCHIVE</span>
+              <span class="story-card-meta">
+                <span class="story-card-label">Order Tracker</span>
+                <span class="story-card-index tabular-nums">03</span>
+              </span>
             </button>
           </div>
         </div>
@@ -160,22 +181,17 @@
 
       <!-- STORE CLOSED PANEL -->
       <section id="closed-store-panel" class="closed-store-section hidden">
-        <div class="ocean-glass-card closed-store-card">
+        <div class="gallery-surface closed-store-card">
           <div id="closed-lock-icon" class="closed-icon-badge"></div>
-          <span class="hero-eyebrow" style="letter-spacing: 0.22em">Atelier Temporarily Closed</span>
-          <h2 class="font-luxury-display" style="font-size: 1.75rem; color: #ffffff">
-            Catalog &amp; Orders Paused
-          </h2>
-          <p
-            id="closed-store-note"
-            style="font-size: 0.875rem; color: #b8c5ce; max-width: 28rem; line-height: 1.625"
-          ></p>
-          <div class="closed-hours-pill">
+          <span class="hero-eyebrow">Atelier Temporarily Closed</span>
+          <h2 class="closed-title">Catalog &amp; Orders Paused</h2>
+          <p id="closed-store-note" class="closed-note"></p>
+          <div class="closed-hours-bar">
             <span style="display: inline-flex; align-items: center; gap: 0.375rem">
               <span id="closed-clock-icon"></span>
               <span>Opens: <strong id="closed-open-time" style="color: #ffffff"></strong></span>
             </span>
-            <span style="color: rgba(103, 232, 249, 0.3)">|</span>
+            <span aria-hidden="true">|</span>
             <span>Closes: <strong id="closed-close-time" style="color: #ffffff"></strong></span>
           </div>
         </div>
@@ -186,18 +202,24 @@
         <div class="category-bar">
           <div class="container-xl category-bar-inner">
             <div id="category-pills-row" class="category-pills-row no-scrollbar"></div>
-            <button id="refresh-catalog-btn" type="button" class="refresh-catalog-btn">
-              <span id="refresh-catalog-icon"></span>
-              <span class="hide-xs">Refresh Catalog</span>
-            </button>
+            <div class="category-bar-tools">
+              <span id="catalog-count-label" class="catalog-count-label tabular-nums"></span>
+              <button id="refresh-catalog-btn" type="button" class="refresh-catalog-btn">
+                <span id="refresh-catalog-icon"></span>
+                <span class="hide-xs">Refresh</span>
+              </button>
+            </div>
           </div>
         </div>
 
         <main id="collection" class="container-xl collection-section">
           <div class="section-header">
-            <h2 class="section-title">CURATED COLLECTION</h2>
+            <div>
+              <div class="section-kicker">Synced Studio Edition · USD</div>
+              <h2 class="section-title">Curated Collection</h2>
+            </div>
             <p class="section-subtitle">
-              The fusion of natural edge walnut and vibrant ocean resin
+              Hand-poured deep ocean epoxy fused with kiln-dried natural-edge walnut, finished to order.
             </p>
           </div>
 
@@ -205,38 +227,39 @@
         </main>
       </div>
 
-      <!-- BESPOKE COMMISSIONS BANNER -->
+      <!-- BESPOKE COMMISSIONS SPLIT EDITORIAL SECTION -->
       <section id="bespoke" class="container-xl bespoke-section">
         <div class="bespoke-banner">
-          <img
-            src="/assets/images/banner_bespoke_commission_1795617285711.jpg"
-            alt="Bespoke Epoxy Resin Pouring Workshop"
-            class="bespoke-banner-img"
-          />
-          <div class="bespoke-banner-scrim"></div>
+          <div class="bespoke-media-col">
+            <img
+              src="/assets/images/banner_bespoke_commission_1795617285711.jpg"
+              alt="Bespoke Epoxy Resin Pouring Workshop"
+              class="bespoke-banner-img"
+            />
+            <div class="bespoke-media-scrim"></div>
+          </div>
           <div class="bespoke-banner-content">
-            <h2 class="bespoke-title">BESPOKE COMMISSIONS</h2>
+            <span class="bespoke-kicker">Custom Studio Craft</span>
+            <h2 class="bespoke-title">Bespoke Commissions</h2>
             <p class="bespoke-copy">
-              Collaborate with our artisans to design a custom walnut and deep ocean epoxy
-              masterpiece tailored to your space.
+              Collaborate directly with our artisans to commission a custom live-edge dining table,
+              wall clock, or collector piece tailored to your exact dimensions and pigment depth.
             </p>
-            <div>
-              <a
-                id="bespoke-whatsapp-link"
-                href="#"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="ocean-pill-btn bespoke-cta"
-              >
-                <span>Begin Your Commission</span>
-                <span id="bespoke-arrow-icon"></span>
-              </a>
-            </div>
+            <a
+              id="bespoke-whatsapp-link"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="gallery-btn-primary bespoke-cta"
+            >
+              <span>Begin Your Commission</span>
+              <span id="bespoke-arrow-icon"></span>
+            </a>
           </div>
         </div>
       </section>
 
-      <!-- DARK FOOTER (Zero /chef links) -->
+      <!-- DARK ATELIER FOOTER (Zero /chef or /999chef887 links) -->
       <footer class="site-footer">
         <div class="container-xl">
           <div class="footer-grid">
@@ -254,13 +277,13 @@
                 </div>
               </div>
               <p class="footer-brand-desc">
-                Museum-grade walnut wood and deep ocean epoxy resin wall clocks, live-edge tables,
+                Museum-grade walnut timber and deep ocean epoxy resin wall clocks, live-edge tables,
                 and collector pieces crafted for enduring luxury.
               </p>
             </div>
 
             <div class="footer-col-service">
-              <div class="ocean-glass-card footer-service-card">
+              <div class="gallery-surface footer-service-card">
                 <div class="footer-service-kicker">Customer Service &amp; Complaints</div>
                 <div class="footer-service-row">
                   <div>
@@ -288,16 +311,7 @@
 
             <div class="footer-col-delivery">
               <div>
-                <div
-                  style="
-                    font-size: 11px;
-                    text-transform: uppercase;
-                    letter-spacing: 0.18em;
-                    color: #7c8c99;
-                  "
-                >
-                  Delivery &amp; Settlement
-                </div>
+                <div class="footer-delivery-label">Delivery &amp; Settlement</div>
                 <div class="footer-delivery-badges">
                   <span id="footer-delivery-chip" class="footer-chip tabular-nums">
                     Delivery: $15 USD

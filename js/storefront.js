@@ -86,7 +86,6 @@ const state = {
 let myOrdersIntervalId = null;
 let myOrdersChannel = null;
 
-// DOM refs
 const dom = {
   closedAlertBar: document.getElementById('closed-alert-bar'),
   brandResetBtn: document.getElementById('brand-reset-btn'),
@@ -109,6 +108,7 @@ const dom = {
   closedCloseTime: document.getElementById('closed-close-time'),
   liveCatalogWrapper: document.getElementById('live-catalog-wrapper'),
   categoryPillsRow: document.getElementById('category-pills-row'),
+  catalogCountLabel: document.getElementById('catalog-count-label'),
   refreshCatalogBtn: document.getElementById('refresh-catalog-btn'),
   refreshCatalogIcon: document.getElementById('refresh-catalog-icon'),
   catalogGridContainer: document.getElementById('catalog-grid-container'),
@@ -127,13 +127,19 @@ const dom = {
 function initStaticChrome() {
   document.getElementById('header-search-icon')?.appendChild(createIcon('search', 'icon-sm'));
   dom.searchClearBtn?.appendChild(createIcon('x', 'icon-sm'));
-  document.getElementById('header-orders-icon')?.appendChild(createIcon('clipboardList', 'icon-sm text-cyan-accent'));
-  document.getElementById('header-bag-icon')?.appendChild(createIcon('shoppingBag', 'icon-sm text-cyan-accent'));
-  document.getElementById('discover-pieces-icon')?.appendChild(createIcon('arrowUpRight', 'icon-md text-cyan-accent'));
+  document
+    .getElementById('header-orders-icon')
+    ?.appendChild(createIcon('clipboardList', 'icon-sm text-cyan-accent'));
+  document.getElementById('header-bag-icon')?.appendChild(createIcon('shoppingBag', 'icon-sm'));
+  document
+    .getElementById('discover-pieces-icon')
+    ?.appendChild(createIcon('arrowUpRight', 'icon-md'));
   document.getElementById('closed-lock-icon')?.appendChild(createIcon('lock', 'icon-xl'));
-  document.getElementById('closed-clock-icon')?.appendChild(createIcon('clock', 'icon-sm text-cyan-accent'));
+  document
+    .getElementById('closed-clock-icon')
+    ?.appendChild(createIcon('clock', 'icon-sm text-cyan-accent'));
   dom.refreshCatalogIcon?.appendChild(createIcon('refreshCw', 'icon-sm text-cyan-accent'));
-  document.getElementById('bespoke-arrow-icon')?.appendChild(createIcon('arrowUpRight', 'icon-md text-cyan-accent'));
+  document.getElementById('bespoke-arrow-icon')?.appendChild(createIcon('arrowUpRight', 'icon-md'));
   document.getElementById('footer-wa-icon')?.appendChild(createIcon('messageCircle', 'icon-sm'));
   dom.backToTopBtn?.appendChild(createIcon('arrowUp', 'icon-md'));
 
@@ -160,7 +166,10 @@ function initStaticChrome() {
   if (bespokeBannerImg) bespokeBannerImg.src = BESPOKE_BANNER_URL;
 
   if (dom.footerWhatsappLink) {
-    dom.footerWhatsappLink.href = formatWhatsAppUrl(SUPPORT_PHONE_RAW, 'Hello DR Customer Service');
+    dom.footerWhatsappLink.href = formatWhatsAppUrl(
+      SUPPORT_PHONE_RAW,
+      'Hello DR Customer Service'
+    );
   }
   if (dom.footerCopyright) {
     dom.footerCopyright.textContent = `© ${new Date().getFullYear()} DR - PREMIUM RESIN PRODUCTS. ALL RIGHTS RESERVED.`;
@@ -200,7 +209,6 @@ function renderBagBadge() {
 function renderSettingsUI() {
   const s = state.settings;
 
-  // Closed alert bar
   if (dom.closedAlertBar) {
     if (!s.isOpen) {
       clearNode(dom.closedAlertBar);
@@ -221,7 +229,6 @@ function renderSettingsUI() {
     }
   }
 
-  // Hero editable copy
   if (dom.heroEyebrow) {
     const eyebrow = (s.heroEyebrow || '').trim();
     dom.heroEyebrow.textContent = eyebrow;
@@ -236,7 +243,6 @@ function renderSettingsUI() {
     dom.heroSubtitle.classList.toggle('hidden', !sub);
   }
 
-  // Open vs closed catalog visibility
   if (dom.closedStorePanel && dom.liveCatalogWrapper) {
     dom.closedStorePanel.classList.toggle('hidden', Boolean(s.isOpen));
     dom.liveCatalogWrapper.classList.toggle('hidden', !s.isOpen);
@@ -260,8 +266,8 @@ function renderCategories() {
   if (!dom.categoryPillsRow) return;
   clearNode(dom.categoryPillsRow);
 
-  const makePill = (label, value) => {
-    const btn = el(
+  const makeTab = (label, value) =>
+    el(
       'button',
       {
         type: 'button',
@@ -274,12 +280,10 @@ function renderCategories() {
       },
       label
     );
-    return btn;
-  };
 
-  dom.categoryPillsRow.appendChild(makePill('All Products', 'ALL'));
+  dom.categoryPillsRow.appendChild(makeTab('All Products', 'ALL'));
   for (const cat of state.categories) {
-    dom.categoryPillsRow.appendChild(makePill(cat, cat));
+    dom.categoryPillsRow.appendChild(makeTab(cat, cat));
   }
 }
 
@@ -332,18 +336,6 @@ function createProductCard(product) {
         ])
       );
     }
-
-    mediaStage.appendChild(el('div', { className: 'product-media-fade' }));
-
-    mediaStage.appendChild(
-      el('div', { className: 'product-top-bar' }, [
-        el('span', { className: 'product-cat-pill' }, product.category),
-        el('span', { className: 'product-price-pill tabular-nums' }, [
-          `${formatPriceUSD(product.price)} `,
-          el('span', { className: 'unit' }, 'USD'),
-        ]),
-      ])
-    );
 
     if (images.length > 1) {
       const prevBtn = el(
@@ -427,9 +419,9 @@ function createProductCard(product) {
     clearNode(addBtn);
     addBtn.classList.toggle('added', justAdded);
     if (justAdded) {
-      addBtn.append(el('span', null, 'Added'), createIcon('check', 'icon-xs'));
+      addBtn.append(createIcon('check', 'icon-xs'), el('span', null, 'Added'));
     } else {
-      addBtn.append(el('span', null, 'Add'), createIcon('plus', 'icon-xs'));
+      addBtn.append(createIcon('plus', 'icon-xs'), el('span', null, 'Add'));
     }
   };
   renderAddBtn(false);
@@ -445,19 +437,19 @@ function createProductCard(product) {
     'button',
     {
       type: 'button',
-      className: 'ocean-pill-btn btn-card-buy',
+      className: 'gallery-btn-primary btn-card-buy',
       onClick: (e) => {
         e.stopPropagation();
         buyNow(product, 1);
       },
     },
-    [el('span', null, 'Buy Now'), createIcon('arrowUpRight', 'icon-xs text-cyan-glow')]
+    [el('span', null, 'Buy Now'), createIcon('arrowUpRight', 'icon-xs')]
   );
 
-  const card = el(
+  return el(
     'article',
     {
-      className: 'ocean-glass-card ocean-glass-card-hover product-card',
+      className: 'product-card',
       role: 'button',
       tabindex: '0',
       onClick: () => openProductDetail(product),
@@ -472,16 +464,21 @@ function createProductCard(product) {
       mediaStage,
       el('div', { className: 'product-card-body' }, [
         el('div', null, [
+          el('div', { className: 'product-card-meta' }, [
+            el('span', { className: 'product-card-meta-cat' }, product.category),
+            el('span', { 'aria-hidden': 'true' }, '·'),
+            el('span', null, 'Handcrafted'),
+          ]),
           el('h3', { className: 'product-card-title' }, product.name),
           el(
             'p',
             { className: 'product-card-desc' },
-            product.description || 'Handcrafted natural wood and deep ocean epoxy resin piece.'
+            product.description || 'Handcrafted natural walnut wood and deep ocean epoxy resin piece.'
           ),
         ]),
         el('div', { className: 'product-card-footer' }, [
           el('div', { className: 'product-card-price-row' }, [
-            el('span', { className: 'product-price-label' }, 'Price'),
+            el('span', { className: 'product-price-label' }, 'Atelier Price'),
             el('div', { className: 'product-price-value tabular-nums' }, [
               `${formatPriceUSD(product.price)} `,
               el('span', { className: 'product-price-currency' }, 'USD'),
@@ -492,8 +489,6 @@ function createProductCard(product) {
       ]),
     ]
   );
-
-  return card;
 }
 
 function renderCatalog() {
@@ -501,10 +496,11 @@ function renderCatalog() {
   clearNode(dom.catalogGridContainer);
 
   if (state.catalogLoading) {
+    if (dom.catalogCountLabel) dom.catalogCountLabel.textContent = 'Syncing...';
     const grid = el('div', { className: 'products-grid' });
     for (let i = 0; i < 8; i++) {
       grid.appendChild(
-        el('div', { className: 'ocean-glass-card skeleton-card animate-pulse' }, [
+        el('div', { className: 'skeleton-card animate-pulse' }, [
           el('div', { className: 'skeleton-media' }),
           el('div', { className: 'skeleton-body' }, [
             el('div', { className: 'skeleton-line skeleton-line--title' }),
@@ -519,25 +515,16 @@ function renderCatalog() {
   }
 
   if (state.catalogError) {
+    if (dom.catalogCountLabel) dom.catalogCountLabel.textContent = '';
     dom.catalogGridContainer.appendChild(
-      el('div', { className: 'ocean-glass-card empty-state-card' }, [
+      el('div', { className: 'gallery-surface empty-state-card' }, [
         el('p', { style: { fontSize: '0.875rem', color: '#fecdd3' } }, state.catalogError),
         el(
           'button',
           {
             type: 'button',
-            className: 'ocean-pill-btn',
-            style: {
-              padding: '0.625rem 1.25rem',
-              borderRadius: '9999px',
-              fontSize: '0.75rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.16em',
-              color: '#ffffff',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-            },
+            className: 'gallery-btn-primary',
+            style: { padding: '0.625rem 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.12em' },
             onClick: () => void loadCatalog(true),
           },
           [createIcon('refreshCw', 'icon-sm'), el('span', null, 'Retry Sync')]
@@ -548,6 +535,10 @@ function renderCatalog() {
   }
 
   const filtered = getFilteredProducts();
+  if (dom.catalogCountLabel) {
+    dom.catalogCountLabel.textContent = `${filtered.length} ${filtered.length === 1 ? 'piece' : 'pieces'}`;
+  }
+
   if (filtered.length === 0) {
     const actions = el('div', { className: 'empty-state-actions' });
     if (state.searchQuery || state.selectedCategory !== 'ALL') {
@@ -556,15 +547,8 @@ function renderCatalog() {
           'button',
           {
             type: 'button',
-            className: 'ocean-pill-btn',
-            style: {
-              padding: '0.5rem 1.25rem',
-              borderRadius: '9999px',
-              fontSize: '0.75rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              color: '#ffffff',
-            },
+            className: 'gallery-btn-primary',
+            style: { padding: '0.5rem 1.125rem', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em' },
             onClick: () => {
               state.searchQuery = '';
               state.selectedCategory = 'ALL';
@@ -583,8 +567,8 @@ function renderCatalog() {
         'button',
         {
           type: 'button',
-          className: 'refresh-catalog-btn',
-          style: { padding: '0.5rem 1.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' },
+          className: 'gallery-btn-secondary',
+          style: { padding: '0.5rem 1.125rem', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em' },
           onClick: () => void loadCatalog(true),
         },
         [createIcon('refreshCw', 'icon-sm'), el('span', null, 'Refresh Sheet')]
@@ -592,21 +576,21 @@ function renderCatalog() {
     );
 
     dom.catalogGridContainer.appendChild(
-      el('div', { className: 'ocean-glass-card empty-state-card' }, [
+      el('div', { className: 'gallery-surface empty-state-card' }, [
         el('img', {
           src: BRAND_LOGO_URL,
           alt: 'DR Resin',
           referrerpolicy: 'no-referrer',
-          style: { width: '3.5rem', height: '3.5rem', objectFit: 'contain', opacity: '0.65' },
+          style: { width: '3.25rem', height: '3.25rem', objectFit: 'contain', opacity: '0.7' },
         }),
         el(
           'h3',
-          { className: 'font-luxury-display', style: { fontSize: '1.25rem', color: '#ffffff' } },
+          { className: 'font-luxury-display', style: { fontSize: '1.5rem', color: '#ffffff' } },
           state.products.length === 0 ? 'Catalog Currently Empty' : 'No Matching Pieces'
         ),
         el(
           'p',
-          { style: { fontSize: '0.75rem', color: '#9ba9b4', lineHeight: '1.625' } },
+          { style: { fontSize: '0.8125rem', color: 'var(--ink-secondary)', lineHeight: '1.6' } },
           state.products.length === 0
             ? 'No products were found in the synced Google Sheets catalog right now.'
             : 'Try clearing your search filter or selecting another category.'
@@ -691,7 +675,7 @@ function openProductDetail(product) {
     try {
       window.history.pushState({ productSlug: product.slug }, '', targetUrl);
     } catch {
-      // Ignore if file:// restricted
+      // Ignore if restricted
     }
   }
   renderProductDetailModal();
@@ -720,16 +704,16 @@ function renderProductDetailModal() {
   const shareUrl = `${window.location.origin}/${product.slug}`;
 
   const stage = el('div', { className: 'detail-stage' });
-  const thumbsWrap = images.length > 1 ? el('div', { className: 'detail-thumbs' }) : null;
+  const thumbsWrap = images.length > 1 ? el('div', { className: 'detail-thumbs no-scrollbar' }) : null;
   const qtyValEl = el('span', { className: 'qty-step-val tabular-nums' }, String(state.detailQty));
   const lineTotalEl = el('span', {
     className: 'tabular-nums',
     style: {
       marginTop: '0.25rem',
       display: 'block',
-      fontSize: '1.5rem',
-      fontWeight: '600',
-      color: '#7ad3ea',
+      fontSize: '1.375rem',
+      fontWeight: '700',
+      color: 'var(--accent-soft)',
     },
   });
 
@@ -737,7 +721,7 @@ function renderProductDetailModal() {
     clearNode(lineTotalEl);
     lineTotalEl.append(
       `${formatPriceUSD(product.price * state.detailQty)} `,
-      el('span', { style: { fontSize: '0.75rem', fontWeight: '400', color: '#9ba9b4' } }, 'USD')
+      el('span', { style: { fontSize: '0.75rem', fontWeight: '500', color: 'var(--ink-secondary)' } }, 'USD')
     );
   };
   updateLineTotal();
@@ -787,8 +771,8 @@ function renderProductDetailModal() {
                 style: {
                   fontSize: '0.75rem',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.2em',
-                  color: '#7c8c99',
+                  letterSpacing: '0.18em',
+                  color: 'var(--ink-muted)',
                 },
               },
               product.category
@@ -904,14 +888,10 @@ function renderProductDetailModal() {
       ]),
       el('h2', { className: 'detail-title' }, product.name),
       el('div', { className: 'detail-price-row' }, [
+        el('span', { className: 'tabular-nums detail-price' }, formatPriceUSD(product.price)),
         el(
           'span',
-          { className: 'tabular-nums detail-price' },
-          formatPriceUSD(product.price)
-        ),
-        el(
-          'span',
-          { style: { fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.16em', color: '#9ba9b4' } },
+          { style: { fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-muted)' } },
           'USD'
         ),
       ]),
@@ -981,10 +961,10 @@ function renderProductDetailModal() {
           'button',
           {
             type: 'button',
-            className: 'ocean-pill-btn btn-detail-buy',
+            className: 'gallery-btn-primary btn-detail-buy',
             onClick: () => buyNow(product, state.detailQty),
           },
-          [el('span', null, 'Buy Now'), createIcon('arrowUpRight', 'icon-md text-cyan-glow')]
+          [el('span', null, 'Buy Now'), createIcon('arrowUpRight', 'icon-md')]
         ),
       ]),
     ]),
@@ -993,7 +973,7 @@ function renderProductDetailModal() {
   const modalCard = el(
     'div',
     {
-      className: 'ocean-glass-card detail-modal-card',
+      className: 'gallery-surface detail-modal-card',
       onClick: (e) => e.stopPropagation(),
     },
     [
@@ -1043,17 +1023,49 @@ function renderCartDrawer() {
 
   const headerKicker =
     state.drawerStep === 'cart'
-      ? 'Step 01 · Your Selection'
+      ? 'Atelier Bag'
       : state.drawerStep === 'checkout'
-      ? 'Step 02 · Delivery & Settlement'
-      : 'Step 03 · Atelier Confirmation';
+      ? 'Courier Settlement'
+      : 'Order Recorded';
 
   const headerTitle =
     state.drawerStep === 'cart'
-      ? 'Curated Bag'
+      ? 'Your Selection'
       : state.drawerStep === 'checkout'
-      ? 'Checkout Invoice'
+      ? 'Delivery & Checkout'
       : 'Order Confirmed';
+
+  const stepsRail = el('div', { className: 'drawer-steps-rail' }, [
+    el(
+      'div',
+      {
+        className: `drawer-step-item ${
+          state.drawerStep === 'cart' ? 'active' : 'done'
+        }`,
+      },
+      '01 · Bag'
+    ),
+    el(
+      'div',
+      {
+        className: `drawer-step-item ${
+          state.drawerStep === 'checkout'
+            ? 'active'
+            : state.drawerStep === 'success'
+            ? 'done'
+            : ''
+        }`,
+      },
+      '02 · Delivery'
+    ),
+    el(
+      'div',
+      {
+        className: `drawer-step-item ${state.drawerStep === 'success' ? 'active' : ''}`,
+      },
+      '03 · Confirmed'
+    ),
+  ]);
 
   const body = el('div', { className: 'drawer-body' });
 
@@ -1062,10 +1074,14 @@ function renderCartDrawer() {
       el('div', { className: 'alert-amber' }, [
         createIcon('alertCircle', 'icon-md text-amber-accent'),
         el('div', null, [
-          el('p', { style: { fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.06em' } }, 'Store Currently Closed'),
           el(
             'p',
-            { style: { marginTop: '0.25rem', opacity: '0.85' } },
+            { style: { fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.06em' } },
+            'Store Currently Closed'
+          ),
+          el(
+            'p',
+            { style: { marginTop: '0.25rem', opacity: '0.9' } },
             `Checkout is temporarily paused until ${state.settings.openTime}. ${state.settings.customNote}`
           ),
         ]),
@@ -1078,32 +1094,39 @@ function renderCartDrawer() {
       body.appendChild(
         el(
           'div',
-          { style: { padding: '4rem 0', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' } },
+          {
+            style: {
+              padding: '3.5rem 0',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '1rem',
+            },
+          },
           [
             el('img', {
               src: BRAND_LOGO_URL,
               alt: 'DR Resin',
               referrerpolicy: 'no-referrer',
-              style: { width: '4rem', height: '4rem', objectFit: 'contain', opacity: '0.6' },
+              style: { width: '3.75rem', height: '3.75rem', objectFit: 'contain', opacity: '0.65' },
             }),
-            el('h3', { className: 'font-luxury-display', style: { fontSize: '1.25rem', color: '#ffffff' } }, 'Your Bag is Empty'),
+            el('h3', { className: 'font-luxury-display', style: { fontSize: '1.5rem', color: '#ffffff' } }, 'Your Bag is Empty'),
             el(
               'p',
-              { style: { fontSize: '0.875rem', color: '#9ba9b4', maxWidth: '20rem' } },
+              { style: { fontSize: '0.875rem', color: 'var(--ink-secondary)', maxWidth: '20rem' } },
               'Explore our walnut and deep ocean resin collection to add pieces to your order.'
             ),
             el(
               'button',
               {
                 type: 'button',
-                className: 'ocean-pill-btn',
+                className: 'gallery-btn-primary',
                 style: {
-                  padding: '0.625rem 1.5rem',
-                  borderRadius: '9999px',
+                  padding: '0.6875rem 1.5rem',
                   fontSize: '0.75rem',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.16em',
-                  color: '#ffffff',
+                  letterSpacing: '0.12em',
                 },
                 onClick: closeDrawer,
               },
@@ -1118,8 +1141,8 @@ function renderCartDrawer() {
         el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } }, [
           el(
             'span',
-            { style: { fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.16em', color: '#9ba9b4' } },
-            `${totalSelected} Pieces Selected`
+            { style: { fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-muted)' } },
+            `${totalSelected} ${totalSelected === 1 ? 'Piece' : 'Pieces'} Selected`
           ),
           el(
             'button',
@@ -1127,9 +1150,7 @@ function renderCartDrawer() {
               type: 'button',
               style: {
                 fontSize: '0.75rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: 'rgba(253, 164, 175, 0.85)',
+                color: 'var(--rose)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.25rem',
@@ -1145,7 +1166,7 @@ function renderCartDrawer() {
       for (const item of state.cart) {
         const thumbSrc = sanitizeImageUrl(item.image) || BRAND_LOGO_URL;
         itemsList.appendChild(
-          el('div', { className: 'ocean-glass-card cart-item-card' }, [
+          el('div', { className: 'cart-item-card' }, [
             el('div', { className: 'cart-item-thumb' }, [
               el('img', { src: thumbSrc, alt: item.name, referrerpolicy: 'no-referrer' }),
             ]),
@@ -1154,7 +1175,7 @@ function renderCartDrawer() {
                 el('div', { style: { minWidth: '0' } }, [
                   el(
                     'span',
-                    { style: { fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.16em', color: '#7ad3ea' } },
+                    { style: { fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--accent-warm)', fontWeight: '600' } },
                     item.category
                   ),
                   el(
@@ -1162,8 +1183,8 @@ function renderCartDrawer() {
                     {
                       className: 'font-luxury-display',
                       style: {
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
+                        fontSize: '1rem',
+                        fontWeight: '600',
                         color: '#ffffff',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -1178,29 +1199,15 @@ function renderCartDrawer() {
                   {
                     type: 'button',
                     'aria-label': `Remove ${item.name}`,
-                    style: { color: '#7c8c99', padding: '0.25rem' },
+                    style: { color: 'var(--ink-muted)', padding: '0.25rem' },
                     onClick: () => removeCartItem(item.productId),
                   },
                   createIcon('trash2', 'icon-sm')
                 ),
               ]),
               el(
-                'p',
-                {
-                  style: {
-                    fontSize: '0.75rem',
-                    color: '#9ba9b4',
-                    marginTop: '0.125rem',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  },
-                },
-                item.description || ''
-              ),
-              el(
                 'div',
-                { style: { marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
+                { style: { marginTop: '0.625rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
                 [
                   el('div', { className: 'qty-stepper-sm' }, [
                     el(
@@ -1234,7 +1241,7 @@ function renderCartDrawer() {
                   ]),
                   el('div', { className: 'tabular-nums', style: { fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' } }, [
                     `${formatPriceUSD(item.unitPrice * item.quantity)} `,
-                    el('span', { style: { fontSize: '10px', fontWeight: '400', color: '#9ba9b4' } }, 'USD'),
+                    el('span', { style: { fontSize: '0.625rem', fontWeight: '500', color: 'var(--ink-muted)' } }, 'USD'),
                   ]),
                 ]
               ),
@@ -1245,7 +1252,7 @@ function renderCartDrawer() {
       body.appendChild(itemsList);
 
       body.appendChild(
-        el('div', { className: 'ocean-glass-card invoice-box' }, [
+        el('div', { className: 'invoice-box' }, [
           el('div', { className: 'invoice-row' }, [
             el('span', null, 'Subtotal'),
             el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatPriceUSD(subtotal)} USD`),
@@ -1256,7 +1263,7 @@ function renderCartDrawer() {
           ]),
           el('div', { className: 'invoice-total-row' }, [
             el('span', null, 'Estimated Total'),
-            el('span', { className: 'tabular-nums', style: { color: '#7ad3ea' } }, `${formatPriceUSD(grandTotal)} USD`),
+            el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)' } }, `${formatPriceUSD(grandTotal)} USD`),
           ]),
         ])
       );
@@ -1264,7 +1271,7 @@ function renderCartDrawer() {
   } else if (state.drawerStep === 'checkout') {
     const form = el('form', {
       id: 'checkout-form',
-      style: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
+      style: { display: 'flex', flexDirection: 'column', gap: '1.25rem' },
       onSubmit: async (e) => {
         e.preventDefault();
         state.checkoutError = '';
@@ -1376,12 +1383,11 @@ function renderCartDrawer() {
     });
 
     form.appendChild(
-      el('div', { style: { display: 'flex', flexDirection: 'column', gap: '1rem' } }, [
+      el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.875rem' } }, [
         el(
           'h3',
           {
-            className: 'font-luxury-display',
-            style: { fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7ad3ea' },
+            style: { fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--accent-warm)' },
           },
           'Recipient Details'
         ),
@@ -1395,12 +1401,11 @@ function renderCartDrawer() {
     );
 
     form.appendChild(
-      el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.75rem' } }, [
+      el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.625rem' } }, [
         el(
           'h3',
           {
-            className: 'font-luxury-display',
-            style: { fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7ad3ea' },
+            style: { fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--accent-warm)' },
           },
           'Payment Method'
         ),
@@ -1409,12 +1414,12 @@ function renderCartDrawer() {
             el('div', { className: 'cod-badge' }, 'COD'),
             el('div', null, [
               el('div', { style: { fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' } }, 'Pay on Delivery'),
-              el('div', { style: { fontSize: '0.75rem', color: '#9ba9b4' } }, [
+              el('div', { style: { fontSize: '0.75rem', color: 'var(--ink-secondary)' } }, [
                 'Pay ',
                 el('span', { className: 'tabular-nums', style: { fontWeight: '600', color: '#ffffff' } }, `${formatPriceUSD(grandTotal)} USD`),
-                ' directly upon delivery (includes ',
+                ' upon courier delivery (includes ',
                 el('span', { className: 'tabular-nums' }, `${formatPriceUSD(deliveryFee)} USD`),
-                ' courier fee)',
+                ' shipping)',
               ]),
             ]),
           ]),
@@ -1424,7 +1429,7 @@ function renderCartDrawer() {
     );
 
     form.appendChild(
-      el('div', { className: 'ocean-glass-card invoice-box' }, [
+      el('div', { className: 'invoice-box' }, [
         el('div', { className: 'invoice-row' }, [
           el('span', null, 'Items Subtotal'),
           el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatPriceUSD(subtotal)} USD`),
@@ -1435,7 +1440,7 @@ function renderCartDrawer() {
         ]),
         el('div', { className: 'invoice-total-row' }, [
           el('span', null, 'Grand Total'),
-          el('span', { className: 'tabular-nums', style: { color: '#7ad3ea' } }, `${formatPriceUSD(grandTotal)} USD`),
+          el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)' } }, `${formatPriceUSD(grandTotal)} USD`),
         ]),
       ])
     );
@@ -1465,7 +1470,7 @@ function renderCartDrawer() {
     });
 
     body.appendChild(
-      el('div', { style: { display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1rem 0' } }, [
+      el('div', { style: { display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '0.5rem 0' } }, [
         el('div', { style: { textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' } }, [
           el(
             'div',
@@ -1474,9 +1479,9 @@ function renderCartDrawer() {
                 width: '3rem',
                 height: '3rem',
                 borderRadius: '9999px',
-                backgroundColor: 'rgba(2, 44, 34, 0.6)',
-                border: '1px solid rgba(52, 211, 153, 0.5)',
-                color: '#6ee7b7',
+                backgroundColor: 'var(--emerald-bg)',
+                border: '1px solid var(--emerald-border)',
+                color: 'var(--emerald)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1486,17 +1491,17 @@ function renderCartDrawer() {
           ),
           el(
             'span',
-            { style: { fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.22em', color: '#7ad3ea' } },
+            { style: { fontSize: '0.6875rem', textTransform: 'uppercase', letterSpacing: '0.2em', color: 'var(--accent-warm)', fontWeight: '600' } },
             'Commission Recorded'
           ),
-          el('h3', { className: 'font-luxury-display tabular-nums', style: { fontSize: '1.875rem', color: '#ffffff' } }, order.orderCode),
+          el('h3', { className: 'font-luxury-display tabular-nums', style: { fontSize: '2.25rem', color: '#ffffff', lineHeight: '1' } }, order.orderCode),
           el(
             'p',
-            { style: { fontSize: '0.75rem', color: '#9ba9b4' } },
+            { style: { fontSize: '0.8125rem', color: 'var(--ink-secondary)' } },
             `Thank you, ${order.customerName}. Your order has been transmitted to the atelier.`
           ),
         ]),
-        el('div', { className: 'ocean-glass-card invoice-box', style: { fontSize: '0.75rem' } }, [
+        el('div', { className: 'invoice-box' }, [
           el('div', { className: 'invoice-row' }, [
             el('span', null, 'Payment Method'),
             el('span', { style: { color: '#ffffff', fontWeight: '500' } }, order.paymentMethod),
@@ -1509,19 +1514,19 @@ function renderCartDrawer() {
             el('span', null, 'Delivery Fee'),
             el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatPriceUSD(order.deliveryFee)} USD`),
           ]),
-          el('div', { className: 'invoice-total-row', style: { fontSize: '0.875rem' } }, [
+          el('div', { className: 'invoice-total-row' }, [
             el('span', null, 'Grand Total'),
-            el('span', { className: 'tabular-nums', style: { color: '#7ad3ea' } }, `${formatPriceUSD(order.grandTotal)} USD`),
+            el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)' } }, `${formatPriceUSD(order.grandTotal)} USD`),
           ]),
         ]),
-        el('div', { className: 'ocean-glass-card footer-service-card', style: { padding: '1rem' } }, [
+        el('div', { className: 'gallery-surface footer-service-card', style: { padding: '1rem' } }, [
           el(
             'div',
-            { style: { fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.16em', color: '#7ad3ea' } },
+            { style: { fontSize: '0.6875rem', textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--accent-warm)' } },
             'Customer Service Assistance'
           ),
           el('div', { className: 'footer-service-row' }, [
-            el('span', { className: 'tabular-nums', style: { fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' } }, SUPPORT_PHONE_DISPLAY),
+            el('span', { className: 'tabular-nums', style: { fontSize: '0.9375rem', fontWeight: '600', color: '#ffffff' } }, SUPPORT_PHONE_DISPLAY),
             el('div', { className: 'footer-service-btns' }, [
               supportCopyBtn,
               el(
@@ -1545,31 +1550,33 @@ function renderCartDrawer() {
             'button',
             {
               type: 'button',
-              className: 'ocean-pill-btn',
+              className: 'gallery-btn-primary',
               style: {
-                padding: '0.75rem 1rem',
-                borderRadius: '9999px',
+                height: '2.75rem',
+                padding: '0 1rem',
                 fontSize: '0.75rem',
                 textTransform: 'uppercase',
-                letterSpacing: '0.14em',
-                color: '#ffffff',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
+                letterSpacing: '0.1em',
               },
               onClick: () => {
                 closeDrawer();
                 openMyOrdersModal();
               },
             },
-            [createIcon('clipboardList', 'icon-md text-cyan-glow'), el('span', null, 'Track in My Orders')]
+            [createIcon('clipboardList', 'icon-md'), el('span', null, 'Track Order')]
           ),
           el(
             'button',
             {
               type: 'button',
-              className: 'btn-detail-add',
+              className: 'gallery-btn-secondary',
+              style: {
+                height: '2.75rem',
+                padding: '0 1rem',
+                fontSize: '0.75rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+              },
               onClick: closeDrawer,
             },
             'Continue Shopping'
@@ -1596,6 +1603,7 @@ function renderCartDrawer() {
         createIcon('x', 'icon-md')
       ),
     ]),
+    stepsRail,
     body,
   ];
 
@@ -1607,27 +1615,20 @@ function renderCartDrawer() {
           {
             type: 'button',
             disabled: !state.settings.isOpen,
-            className: 'ocean-pill-btn',
+            className: 'gallery-btn-primary',
             style: {
               width: '100%',
-              padding: '0.875rem',
-              borderRadius: '9999px',
+              height: '2.875rem',
               fontSize: '0.75rem',
               textTransform: 'uppercase',
-              letterSpacing: '0.18em',
-              fontWeight: '600',
-              color: '#ffffff',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
+              letterSpacing: '0.14em',
             },
             onClick: () => {
               state.drawerStep = 'checkout';
               renderCartDrawer();
             },
           },
-          [el('span', null, 'Proceed to Checkout'), createIcon('arrowRight', 'icon-md text-cyan-glow')]
+          [el('span', null, 'Proceed to Checkout'), createIcon('arrowRight', 'icon-md')]
         ),
       ])
     );
@@ -1638,8 +1639,8 @@ function renderCartDrawer() {
           'button',
           {
             type: 'button',
-            className: 'chef-pill-btn',
-            style: { padding: '0.75rem 1.25rem', textTransform: 'uppercase', letterSpacing: '0.14em' },
+            className: 'gallery-btn-secondary',
+            style: { height: '2.75rem', padding: '0 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em' },
             onClick: () => {
               state.drawerStep = 'cart';
               renderCartDrawer();
@@ -1653,20 +1654,14 @@ function renderCartDrawer() {
             type: 'submit',
             form: 'checkout-form',
             disabled: state.checkoutSubmitting || !state.settings.isOpen,
-            className: 'ocean-pill-btn',
+            className: 'gallery-btn-primary',
             style: {
               flex: '1 1 0%',
-              padding: '0.75rem',
-              borderRadius: '9999px',
+              height: '2.75rem',
+              padding: '0 1rem',
               fontSize: '0.75rem',
               textTransform: 'uppercase',
-              letterSpacing: '0.18em',
-              fontWeight: '600',
-              color: '#ffffff',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
+              letterSpacing: '0.12em',
             },
           },
           el(
@@ -1747,10 +1742,10 @@ function renderMyOrdersList() {
   if (state.myOrders.length === 0) {
     listWrap.appendChild(
       el('div', { style: { padding: '3rem 0', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.5rem' } }, [
-        el('p', { className: 'font-luxury-display', style: { fontSize: '1.125rem', color: '#ffffff' } }, 'No Orders Tracked Yet'),
+        el('p', { className: 'font-luxury-display', style: { fontSize: '1.375rem', color: '#ffffff' } }, 'No Orders Tracked Yet'),
         el(
           'p',
-          { style: { fontSize: '0.75rem', color: '#9ba9b4', maxWidth: '24rem', margin: '0 auto' } },
+          { style: { fontSize: '0.8125rem', color: 'var(--ink-secondary)', maxWidth: '24rem', margin: '0 auto' } },
           'Orders placed from this browser appear automatically. Enter an order code or your phone number above to retrieve orders from another device.'
         ),
       ])
@@ -1761,21 +1756,21 @@ function renderMyOrdersList() {
   for (const order of state.myOrders) {
     const isHighlighted = state.highlightedOrderCode && order.orderCode === state.highlightedOrderCode;
     const card = el('div', {
-      className: 'ocean-glass-card',
+      className: 'gallery-surface',
       style: {
-        borderRadius: '0.75rem',
+        borderRadius: 'var(--radius-md)',
         padding: '1.25rem',
         display: 'flex',
         flexDirection: 'column',
-        gap: '1rem',
+        gap: '0.875rem',
         ...(isHighlighted
-          ? { borderColor: '#4cc9ea', boxShadow: '0 0 0 2px rgba(76, 201, 234, 0.5)' }
+          ? { borderColor: 'var(--accent-bright)', boxShadow: '0 0 0 1px var(--accent-bright)' }
           : {}),
       },
     });
 
     const titleRow = el('div', { style: { display: 'flex', alignItems: 'center', gap: '0.625rem' } }, [
-      el('span', { className: 'font-luxury-display tabular-nums', style: { fontSize: '1.125rem', color: '#ffffff' } }, order.orderCode),
+      el('span', { className: 'font-luxury-display tabular-nums', style: { fontSize: '1.25rem', fontWeight: '600', color: '#ffffff' } }, order.orderCode),
     ]);
     if (isHighlighted) {
       titleRow.appendChild(
@@ -1783,17 +1778,14 @@ function renderMyOrdersList() {
           'span',
           {
             style: {
-              fontSize: '10px',
+              fontSize: '0.625rem',
               textTransform: 'uppercase',
-              letterSpacing: '0.16em',
-              color: '#7ad3ea',
-              backgroundColor: 'rgba(8, 51, 68, 0.6)',
-              border: '1px solid rgba(103, 232, 249, 0.35)',
-              padding: '0.125rem 0.5rem',
-              borderRadius: '9999px',
+              letterSpacing: '0.14em',
+              color: 'var(--accent-soft)',
+              fontWeight: '600',
             },
           },
-          'New Order'
+          '· Recent'
         )
       );
     }
@@ -1812,8 +1804,8 @@ function renderMyOrdersList() {
 
     const itemsBox = el('div', {
       style: {
-        borderTop: '1px solid rgba(103, 232, 249, 0.1)',
-        borderBottom: '1px solid rgba(103, 232, 249, 0.1)',
+        borderTop: '1px solid var(--hairline)',
+        borderBottom: '1px solid var(--hairline)',
         padding: '0.75rem 0',
         display: 'flex',
         flexDirection: 'column',
@@ -1822,9 +1814,9 @@ function renderMyOrdersList() {
     });
     for (const item of order.items || []) {
       itemsBox.appendChild(
-        el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', gap: '0.75rem' } }, [
-          el('div', { style: { color: '#d8eef5' } }, [
-            el('span', { className: 'tabular-nums', style: { color: '#7ad3ea', fontWeight: '600' } }, `${item.quantity}×`),
+        el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8125rem', gap: '0.75rem' } }, [
+          el('div', { style: { color: 'var(--ink)' } }, [
+            el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)', fontWeight: '600' } }, `${item.quantity}×`),
             ` ${item.name}`,
           ]),
           el('div', { className: 'tabular-nums', style: { color: '#ffffff', fontWeight: '500', flexShrink: '0' } }, `${formatPriceUSD(item.lineTotal)} USD`),
@@ -1836,19 +1828,19 @@ function renderMyOrdersList() {
       el('div', { style: { display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' } }, [
         el('div', null, [
           titleRow,
-          el('div', { style: { fontSize: '0.75rem', color: '#9ba9b4', marginTop: '0.125rem' } }, new Date(order.createdAt).toLocaleString()),
+          el('div', { style: { fontSize: '0.75rem', color: 'var(--ink-muted)', marginTop: '0.125rem' } }, new Date(order.createdAt).toLocaleString()),
         ]),
         statusCol,
       ]),
       itemsBox,
       el('div', { className: 'chef-form-grid-2', style: { fontSize: '0.75rem' } }, [
         el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.25rem' } }, [
-          el('div', { style: { color: '#7c8c99', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '10px' } }, 'Payment & Settlement'),
+          el('div', { style: { color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.625rem' } }, 'Payment & Settlement'),
           el('div', { style: { color: '#ffffff' } }, order.paymentMethod),
         ]),
         el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.25rem' } }, [
-          el('div', { style: { color: '#7c8c99', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '10px' } }, 'Delivery Address'),
-          el('div', { style: { color: '#d8eef5' } }, order.deliveryAddress),
+          el('div', { style: { color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.625rem' } }, 'Delivery Address'),
+          el('div', { style: { color: 'var(--ink-secondary)' } }, order.deliveryAddress),
         ]),
       ]),
       el(
@@ -1856,7 +1848,7 @@ function renderMyOrdersList() {
         {
           style: {
             paddingTop: '0.5rem',
-            borderTop: '1px solid rgba(103, 232, 249, 0.1)',
+            borderTop: '1px solid var(--hairline)',
             display: 'flex',
             flexWrap: 'wrap',
             alignItems: 'center',
@@ -1866,13 +1858,13 @@ function renderMyOrdersList() {
           },
         },
         [
-          el('div', { style: { color: '#9ba9b4' } }, [
+          el('div', { style: { color: 'var(--ink-secondary)' } }, [
             'Delivery Fee: ',
             el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatPriceUSD(order.deliveryFee)} USD`),
           ]),
           el('div', { style: { fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' } }, [
             'Grand Total: ',
-            el('span', { className: 'tabular-nums', style: { color: '#7ad3ea' } }, `${formatPriceUSD(order.grandTotal)} USD`),
+            el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)' } }, `${formatPriceUSD(order.grandTotal)} USD`),
           ]),
         ]
       )
@@ -1929,7 +1921,7 @@ function renderMyOrdersModal() {
   const modal = el(
     'div',
     {
-      className: 'ocean-glass-card orders-modal-card',
+      className: 'gallery-surface orders-modal-card',
       onClick: (e) => e.stopPropagation(),
     },
     [
@@ -1985,21 +1977,20 @@ function renderMyOrdersModal() {
         },
         [
           el('div', { className: 'orders-lookup-input-wrap' }, [
-            createIcon('search', 'icon-md search-icon'),
+            createIcon('search', 'icon-sm search-icon'),
             lookupInput,
           ]),
           el(
             'button',
             {
               type: 'submit',
-              className: 'ocean-pill-btn',
+              className: 'gallery-btn-primary',
               style: {
-                padding: '0.5rem 1rem',
-                borderRadius: '9999px',
+                height: '2.375rem',
+                padding: '0 1rem',
                 fontSize: '0.75rem',
                 textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                color: '#ffffff',
+                letterSpacing: '0.08em',
                 flexShrink: '0',
               },
             },

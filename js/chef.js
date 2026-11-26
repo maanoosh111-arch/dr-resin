@@ -104,6 +104,21 @@ let savedToastTimerId = null;
 const appRoot = document.getElementById('chef-app');
 const printRoot = document.getElementById('printable-receipt-container');
 
+function statusBadgeClass(status) {
+  switch (status) {
+    case OrderStatus.PENDING:
+      return 'status-badge status-badge--pending';
+    case OrderStatus.IN_PROGRESS:
+      return 'status-badge status-badge--progress';
+    case OrderStatus.FINISHED:
+      return 'status-badge status-badge--finished';
+    case OrderStatus.REJECTED:
+      return 'status-badge status-badge--rejected';
+    default:
+      return 'status-badge';
+  }
+}
+
 function showToast(msg) {
   state.toastMessage = msg;
   renderToast();
@@ -369,9 +384,7 @@ async function refreshOrders() {
         ]);
 
         const byId = new Map();
-        const cloudById = new Map();
         for (const co of cloudOrders) {
-          cloudById.set(co.id, co);
           byId.set(co.id, co);
         }
         for (const so of serverOrders) {
@@ -458,7 +471,7 @@ async function refreshSettings() {
       state.formHeroTitle = chosen.heroTitle ?? DEFAULT_SETTINGS.heroTitle;
       state.formHeroSubtitle = chosen.heroSubtitle ?? DEFAULT_SETTINGS.heroSubtitle;
     }
-    updateHeaderAndTabsOnly();
+    updateChromeOnly();
   } catch {
     // Ignore
   }
@@ -550,7 +563,7 @@ async function updateOrder(orderId, patch) {
   if (updated) {
     state.orders = state.orders.map((o) => (o.id === updated.id ? updated : o));
     broadcastOrdersUpdate({ orderId: updated.id });
-    updateHeaderAndTabsOnly();
+    updateChromeOnly();
     renderMainSection();
     if (cloudVerified) {
       void syncOrderToFirestore(updated).catch(() => undefined);
@@ -622,7 +635,7 @@ async function executeDeleteOrder() {
 
   state.confirmDeleteAction = null;
   renderModals();
-  updateHeaderAndTabsOnly();
+  updateChromeOnly();
   renderMainSection();
 }
 
@@ -661,7 +674,7 @@ async function handleSaveSettings(e) {
         }
       } else {
         state.settingsSavedToast =
-          'Saved on this server only. Connect Google Cloud Sync above to publish globally worldwide.';
+          'Saved on this server only. Connect Google Cloud Sync to publish globally worldwide.';
       }
 
       if (savedToastTimerId) window.clearTimeout(savedToastTimerId);
@@ -672,7 +685,7 @@ async function handleSaveSettings(e) {
     }
   } finally {
     state.settingsSaving = false;
-    updateHeaderAndTabsOnly();
+    updateChromeOnly();
     if (state.activeTab === 'settings') renderMainSection();
   }
 }
@@ -709,7 +722,7 @@ async function handleGoogleCloudConnect() {
     if (state.analyticsBaselineAt) {
       void syncAnalyticsBaselineToFirestore(state.analyticsBaselineAt).catch(() => undefined);
     }
-    updateHeaderAndTabsOnly();
+    updateChromeOnly();
     void refreshSettings();
     void refreshOrders();
     showToast(`Global Cloud Sync active as ${state.firebaseUserEmail || 'Google Account'}`);
@@ -756,7 +769,7 @@ async function handleLogout() {
 
 async function toggleMute() {
   state.muted = !state.muted;
-  updateHeaderAndTabsOnly();
+  updateChromeOnly();
   if (!state.muted) {
     await unlockAudioContext();
     await playNewOrderChime();
@@ -770,15 +783,16 @@ function renderToast() {
   if (!state.toastMessage) return;
 
   slot.appendChild(
-    el('div', { className: 'ocean-glass-card chef-toast', role: 'status' }, [
+    el('div', { className: 'chef-toast', role: 'status' }, [
       el(
         'span',
         {
           style: {
-            color: 'var(--accent-ocean-light)',
+            color: 'var(--accent-soft)',
             fontWeight: '600',
             textTransform: 'uppercase',
             letterSpacing: '0.08em',
+            fontSize: '0.6875rem',
           },
         },
         'Notice'
@@ -839,7 +853,7 @@ function renderLoginScreen() {
         el(
           'label',
           { for: 'chef-pin-input', className: 'field-label' },
-          state.needsSetup ? 'Create Admin PIN (4+ characters)' : 'Chef PIN'
+          state.needsSetup ? 'Create Admin PIN (4+ characters)' : 'Chef Access PIN'
         ),
         el('div', { className: 'chef-pin-wrap' }, [pinInputNode, toggleBtn]),
       ]),
@@ -848,38 +862,36 @@ function renderLoginScreen() {
         {
           type: 'submit',
           disabled: state.authSubmitting,
-          className: 'ocean-pill-btn',
+          className: 'gallery-btn-primary',
           style: {
             width: '100%',
-            padding: '0.75rem 1rem',
-            borderRadius: '9999px',
+            height: '2.75rem',
             fontSize: '0.75rem',
             textTransform: 'uppercase',
-            letterSpacing: '0.18em',
-            fontWeight: '600',
-            color: '#ffffff',
+            letterSpacing: '0.14em',
           },
         },
         state.authSubmitting
           ? 'Verifying...'
           : state.needsSetup
-          ? 'Save PIN & Enter Dashboard'
-          : 'Unlock Dashboard'
+          ? 'Save PIN & Enter Console'
+          : 'Unlock Console'
       ),
     ]
   );
 
-  const card = el('div', { className: 'ocean-glass-card chef-login-card' }, [
-    el('div', { style: { textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.5rem' } }, [
+  const card = el('div', { className: 'chef-login-card' }, [
+    el('div', { style: { textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' } }, [
       logo,
       el(
         'span',
         {
           style: {
-            fontSize: '11px',
+            fontSize: '0.6875rem',
             textTransform: 'uppercase',
-            letterSpacing: '0.22em',
-            color: 'var(--accent-ocean-light)',
+            letterSpacing: '0.2em',
+            color: 'var(--accent-warm)',
+            fontWeight: '600',
           },
         },
         'Private Atelier Console'
@@ -888,13 +900,13 @@ function renderLoginScreen() {
         'h1',
         {
           className: 'font-luxury-display',
-          style: { fontSize: '1.5rem', color: '#ffffff', letterSpacing: '0.06em', fontWeight: '400' },
+          style: { fontSize: '1.875rem', color: '#ffffff', fontWeight: '500' },
         },
         state.needsSetup ? 'Set Chef Access PIN' : 'Chef Dashboard Login'
       ),
       el(
         'p',
-        { style: { fontSize: '0.75rem', color: 'var(--text-secondary)' } },
+        { style: { fontSize: '0.8125rem', color: 'var(--ink-secondary)' } },
         state.needsSetup
           ? 'No CHEF_PIN environment secret is configured yet. Claim your initial admin PIN below.'
           : 'Enter your private Chef PIN to manage orders, receipts, and store availability.'
@@ -906,7 +918,7 @@ function renderLoginScreen() {
       {
         style: {
           paddingTop: '1rem',
-          borderTop: '1px solid rgba(103, 232, 249, 0.15)',
+          borderTop: '1px solid var(--hairline)',
           textAlign: 'center',
         },
       },
@@ -919,7 +931,7 @@ function renderLoginScreen() {
             alignItems: 'center',
             gap: '0.375rem',
             fontSize: '0.75rem',
-            color: 'var(--text-secondary)',
+            color: 'var(--ink-secondary)',
           },
         },
         [createIcon('arrowLeft', 'icon-sm'), el('span', null, 'Back to Storefront')]
@@ -927,23 +939,33 @@ function renderLoginScreen() {
     ),
   ]);
 
-  appRoot.appendChild(el('div', { className: 'chef-auth-center ocean-vignette' }, card));
+  appRoot.appendChild(el('div', { className: 'chef-auth-center' }, card));
 }
 
-function buildHeaderNode() {
+function getWorkspaceNavItems() {
   const activeOrders = getActiveOrders();
   const archivedOrders = getArchivedOrders();
-
-  const tabs = [
-    { id: 'active', label: `Active Orders (${activeOrders.length})` },
-    { id: 'archived', label: `Archived Orders (${archivedOrders.length})` },
-    { id: 'analytics', label: 'Sales & Profits' },
-    { id: 'settings', label: 'Store Settings & Catalog' },
+  return [
+    { id: 'active', label: 'Active Orders', icon: 'clipboardList', count: activeOrders.length },
+    { id: 'archived', label: 'Archived Orders', icon: 'archive', count: archivedOrders.length },
+    { id: 'analytics', label: 'Sales & Profits', icon: 'barChart', count: null },
+    { id: 'settings', label: 'Settings & Catalog', icon: 'sliders', count: null },
   ];
+}
 
-  return el('header', { id: 'chef-header', className: 'chef-header' }, [
-    el('div', { className: 'container-xl chef-header-top' }, [
-      el('div', { className: 'chef-brand-row' }, [
+function selectWorkspaceTab(tabId) {
+  state.activeTab = tabId;
+  updateChromeOnly();
+  renderMainSection();
+}
+
+function buildSidebarNode() {
+  const isOpen = Boolean(state.settings?.isOpen);
+  const navItems = getWorkspaceNavItems();
+
+  return el('aside', { id: 'chef-sidebar', className: 'chef-sidebar' }, [
+    el('div', null, [
+      el('div', { className: 'chef-sidebar-brand' }, [
         el('img', {
           src: BRAND_LOGO_URL,
           alt: 'DR Crest',
@@ -951,148 +973,204 @@ function buildHeaderNode() {
           className: 'chef-brand-logo',
         }),
         el('div', null, [
-          el(
-            'h1',
-            {
-              className: 'font-luxury-display',
-              style: {
-                fontSize: '1.05rem',
-                letterSpacing: '0.12em',
-                color: '#ffffff',
-                lineHeight: '1',
-                fontWeight: '400',
-              },
-            },
-            'DR ATELIER CONSOLE'
-          ),
-          el('div', { className: 'chef-status-sub' }, [
-            el('span', null, state.settings?.isOpen ? 'Store Open' : 'Store Closed'),
-            el('span', { 'aria-hidden': 'true' }, '·'),
-            el('span', { className: 'tabular-nums' }, `${activeOrders.length} Active Orders`),
+          el('div', { className: 'chef-sidebar-title' }, 'DR ATELIER'),
+          el('div', { className: 'chef-sidebar-status' }, [
+            el('span', {
+              className: `chef-status-dot ${isOpen ? 'chef-status-dot--open' : 'chef-status-dot--closed'}`,
+            }),
+            el('span', null, isOpen ? 'Store Open' : 'Store Closed'),
           ]),
         ]),
       ]),
+      el(
+        'nav',
+        { className: 'chef-sidebar-nav', 'aria-label': 'Workspace navigation' },
+        navItems.map((item) =>
+          el(
+            'button',
+            {
+              type: 'button',
+              className: `chef-nav-item ${state.activeTab === item.id ? 'active' : ''}`,
+              onClick: () => selectWorkspaceTab(item.id),
+            },
+            [
+              el('span', { className: 'chef-nav-label' }, [
+                createIcon(item.icon, 'icon-sm'),
+                el('span', null, item.label),
+              ]),
+              item.count !== null
+                ? el('span', { className: 'chef-nav-count tabular-nums' }, String(item.count))
+                : null,
+            ]
+          )
+        )
+      ),
+    ]),
 
-      el('div', { className: 'chef-header-actions' }, [
+    el('div', { className: 'chef-sidebar-footer' }, [
+      el(
+        'a',
+        { href: '/', className: 'chef-pill-btn', style: { width: '100%', justifyContent: 'center' } },
+        [createIcon('arrowLeft', 'icon-sm'), el('span', null, 'Back to Store')]
+      ),
+      el(
+        'button',
+        {
+          type: 'button',
+          className: 'chef-logout-btn',
+          style: { width: '100%', justifyContent: 'center' },
+          onClick: () => void handleLogout(),
+        },
+        [createIcon('logOut', 'icon-sm'), el('span', null, 'Logout')]
+      ),
+    ]),
+  ]);
+}
+
+function buildTopbarNode() {
+  const activeOrders = getActiveOrders();
+  const navItems = getWorkspaceNavItems();
+  const currentMeta = navItems.find((n) => n.id === state.activeTab) || navItems[0];
+
+  return el('header', { id: 'chef-topbar', className: 'chef-topbar' }, [
+    el('div', { className: 'chef-topbar-inner' }, [
+      el('div', { className: 'chef-topbar-left' }, [
+        el('div', { className: 'chef-mobile-brand' }, [
+          el('img', {
+            src: BRAND_LOGO_URL,
+            alt: 'DR Crest',
+            referrerpolicy: 'no-referrer',
+            className: 'chef-brand-logo',
+          }),
+        ]),
+        el('div', null, [
+          el('h1', { className: 'chef-page-heading' }, currentMeta.label),
+          el(
+            'div',
+            { className: 'tabular-nums', style: { fontSize: '0.75rem', color: 'var(--ink-muted)' } },
+            `${state.settings?.isOpen ? 'Store Open' : 'Store Closed'} · ${activeOrders.length} Active Orders`
+          ),
+        ]),
+      ]),
+
+      el('div', { className: 'chef-topbar-actions' }, [
         el(
           'button',
           {
             type: 'button',
             className: 'chef-pill-btn',
             style: state.firebaseUserEmail
-              ? { borderColor: 'rgba(52, 211, 153, 0.5)', color: '#a7f3d0' }
-              : { borderColor: 'rgba(251, 191, 36, 0.55)', color: '#fde68a' },
+              ? { borderColor: 'var(--emerald-border)', color: '#a7f3d0' }
+              : { borderColor: 'var(--amber-border)', color: '#fde68a' },
             title: state.firebaseUserEmail
               ? `Global Cloud Sync active (${state.firebaseUserEmail})`
               : 'Sign in with Google to enable global Firestore sync',
             onClick: () => void handleGoogleCloudConnect(),
           },
           [
-            createIcon('cloud', state.firebaseUserEmail ? 'icon-sm text-emerald-accent' : 'icon-sm text-amber-accent'),
-            el('span', { className: 'hide-xs' }, state.firebaseUserEmail ? 'Global Sync Active' : 'Connect Global Sync'),
+            createIcon(
+              'cloud',
+              state.firebaseUserEmail ? 'icon-sm text-emerald-accent' : 'icon-sm text-amber-accent'
+            ),
+            el(
+              'span',
+              { className: 'hide-xs' },
+              state.firebaseUserEmail ? 'Global Sync Active' : 'Connect Global Sync'
+            ),
           ]
         ),
         el(
           'button',
           {
             type: 'button',
-            className: state.muted ? 'chef-sound-muted' : 'ocean-pill-btn chef-sound-on',
+            className: `chef-pill-btn ${state.muted ? 'chef-sound-muted' : 'chef-sound-on'}`,
             onClick: () => void toggleMute(),
           },
           [
-            createIcon(state.muted ? 'volumeX' : 'volume2', state.muted ? 'icon-sm' : 'icon-sm text-cyan-accent'),
+            createIcon(
+              state.muted ? 'volumeX' : 'volume2',
+              state.muted ? 'icon-sm' : 'icon-sm text-cyan-accent'
+            ),
             el('span', { className: 'hide-xs' }, state.muted ? 'Muted' : 'Sound On'),
           ]
         ),
         el(
           'a',
-          {
-            href: '/',
-            className: 'chef-pill-btn',
-          },
-          [createIcon('arrowLeft', 'icon-sm'), el('span', null, 'Back to Store')]
+          { href: '/', className: 'chef-pill-btn chef-mobile-brand' },
+          [createIcon('arrowLeft', 'icon-sm'), el('span', { className: 'hide-xs' }, 'Store')]
         ),
         el(
           'button',
           {
             type: 'button',
-            className: 'chef-logout-btn',
+            className: 'chef-logout-btn chef-mobile-brand',
             onClick: () => void handleLogout(),
           },
-          [createIcon('logOut', 'icon-sm'), el('span', null, 'Logout')]
+          [createIcon('logOut', 'icon-sm')]
         ),
       ]),
     ]),
 
     el(
       'div',
-      { className: 'container-xl chef-tabs-bar no-scrollbar' },
-      tabs.map((t) =>
+      { className: 'chef-mobile-tabs no-scrollbar' },
+      navItems.map((item) =>
         el(
           'button',
           {
             type: 'button',
-            className: `category-pill ${state.activeTab === t.id ? 'active' : ''}`,
-            style: { letterSpacing: '0.14em' },
-            onClick: () => {
-              state.activeTab = t.id;
-              updateHeaderAndTabsOnly();
-              renderMainSection();
-            },
+            className: `category-pill tabular-nums ${state.activeTab === item.id ? 'active' : ''}`,
+            onClick: () => selectWorkspaceTab(item.id),
           },
-          t.label
+          item.count !== null ? `${item.label} (${item.count})` : item.label
         )
       )
     ),
+
     !state.firebaseUserEmail
-      ? el(
-          'div',
-          {
-            className: 'container-xl',
-            style: { paddingBottom: '0.625rem' },
-          },
-          [
-            el(
-              'div',
-              {
-                className: 'alert-amber',
-                style: {
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.75rem',
-                  padding: '0.5rem 0.875rem',
-                },
+      ? el('div', { className: 'chef-cloud-banner' }, [
+          el(
+            'div',
+            {
+              className: 'alert-amber',
+              style: {
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.5rem 0.875rem',
               },
-              [
-                el(
-                  'span',
-                  { style: { fontSize: '0.75rem' } },
-                  'Connect Global Cloud Sync with Google so changes apply worldwide for every visitor across all servers.'
-                ),
-                el(
-                  'button',
-                  {
-                    type: 'button',
-                    className: 'chef-pill-btn',
-                    style: { borderColor: 'rgba(251, 191, 36, 0.55)', color: '#fde68a' },
-                    onClick: () => void handleGoogleCloudConnect(),
-                  },
-                  [createIcon('cloud', 'icon-sm text-amber-accent'), el('span', null, 'Connect Global Sync')]
-                ),
-              ]
-            ),
-          ]
-        )
+            },
+            [
+              el(
+                'span',
+                { style: { fontSize: '0.75rem' } },
+                'Connect Global Cloud Sync with Google so changes apply worldwide for every visitor across all servers.'
+              ),
+              el(
+                'button',
+                {
+                  type: 'button',
+                  className: 'chef-pill-btn',
+                  style: { borderColor: 'var(--amber-border)', color: '#fde68a' },
+                  onClick: () => void handleGoogleCloudConnect(),
+                },
+                [createIcon('cloud', 'icon-sm text-amber-accent'), el('span', null, 'Connect Sync')]
+              ),
+            ]
+          ),
+        ])
       : null,
   ]);
 }
 
-function updateHeaderAndTabsOnly() {
-  const existing = document.getElementById('chef-header');
-  if (!existing || !existing.parentNode) return;
-  existing.replaceWith(buildHeaderNode());
+function updateChromeOnly() {
+  const existingSidebar = document.getElementById('chef-sidebar');
+  if (existingSidebar?.parentNode) {
+    existingSidebar.replaceWith(buildSidebarNode());
+  }
+  const existingTopbar = document.getElementById('chef-topbar');
+  if (existingTopbar?.parentNode) {
+    existingTopbar.replaceWith(buildTopbarNode());
+  }
 }
 
 function buildActiveOrdersTab() {
@@ -1120,7 +1198,6 @@ function buildActiveOrdersTab() {
         {
           type: 'button',
           className: `category-pill tabular-nums ${state.statusFilter === f.id ? 'active' : ''}`,
-          style: { textTransform: 'none', letterSpacing: '0.02em', padding: '0.375rem 0.875rem' },
           onClick: () => {
             state.statusFilter = f.id;
             renderMainSection();
@@ -1133,11 +1210,7 @@ function buildActiveOrdersTab() {
 
   let body;
   if (filtered.length === 0) {
-    body = el(
-      'div',
-      { className: 'ocean-glass-card chef-empty-box' },
-      'No orders match this status filter.'
-    );
+    body = el('div', { className: 'chef-empty-box' }, 'No orders match this status filter.');
   } else {
     body = el(
       'div',
@@ -1148,21 +1221,24 @@ function buildActiveOrdersTab() {
           payMethod.toLowerCase() === 'cash on delivery' ||
           payMethod.toLowerCase() === 'pay on delivery';
 
-        return el('div', { className: 'ocean-glass-card chef-order-card' }, [
+        return el('article', { className: 'chef-order-card' }, [
           el('div', { className: 'chef-card-top' }, [
             el('div', null, [
               el('div', { className: 'chef-badge-row' }, [
                 el(
                   'span',
-                  { className: 'font-luxury-display tabular-nums', style: { fontSize: '1.125rem', color: '#ffffff' } },
+                  {
+                    className: 'font-luxury-display tabular-nums',
+                    style: { fontSize: '1.25rem', fontWeight: '600', color: '#ffffff' },
+                  },
                   order.orderCode
                 ),
-                el('span', { className: 'chef-badge-status' }, order.status),
+                el('span', { className: statusBadgeClass(order.status) }, order.status),
                 order.isPaid ? el('span', { className: 'chef-badge-paid' }, 'Paid') : null,
               ]),
               el(
                 'div',
-                { style: { fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' } },
+                { style: { fontSize: '0.75rem', color: 'var(--ink-muted)', marginTop: '0.25rem' } },
                 new Date(order.createdAt).toLocaleString()
               ),
             ]),
@@ -1182,16 +1258,16 @@ function buildActiveOrdersTab() {
             el('div', null, [
               el(
                 'div',
-                { style: { color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em' } },
+                { style: { color: 'var(--ink-muted)', fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.08em' } },
                 'Customer'
               ),
-              el('div', { style: { color: '#ffffff', fontWeight: '500', marginTop: '0.125rem' } }, order.customerName),
+              el('div', { style: { color: '#ffffff', fontWeight: '600', marginTop: '0.15rem' } }, order.customerName),
               el(
                 'a',
                 {
                   href: `tel:${order.customerPhone}`,
                   className: 'tabular-nums text-cyan-accent',
-                  style: { display: 'inline-block', marginTop: '0.125rem' },
+                  style: { display: 'inline-block', marginTop: '0.15rem' },
                 },
                 order.customerPhone
               ),
@@ -1199,14 +1275,14 @@ function buildActiveOrdersTab() {
             el('div', null, [
               el(
                 'div',
-                { style: { color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em' } },
+                { style: { color: 'var(--ink-muted)', fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.08em' } },
                 'Address'
               ),
-              el('div', { style: { color: 'var(--text-ice)', marginTop: '0.125rem' } }, order.deliveryAddress),
+              el('div', { style: { color: 'var(--ink)', marginTop: '0.15rem' } }, order.deliveryAddress),
               order.deliveryNotes
                 ? el(
                     'div',
-                    { style: { color: 'rgba(253, 230, 138, 0.85)', marginTop: '0.25rem' } },
+                    { style: { color: '#fde68a', marginTop: '0.25rem' } },
                     `Note: ${order.deliveryNotes}`
                   )
                 : null,
@@ -1225,13 +1301,13 @@ function buildActiveOrdersTab() {
             { className: 'chef-items-list' },
             (order.items || []).map((item) =>
               el('div', { className: 'chef-item-row' }, [
-                el('span', { style: { color: 'var(--text-ice)' } }, [
+                el('span', { style: { color: 'var(--ink)' } }, [
                   el('strong', { className: 'tabular-nums text-cyan-accent' }, `${item.quantity}×`),
                   ` ${item.name}`,
                 ]),
                 el(
                   'span',
-                  { className: 'tabular-nums', style: { color: '#ffffff' } },
+                  { className: 'tabular-nums', style: { color: '#ffffff', fontWeight: '500' } },
                   `${formatPriceUSD(item.lineTotal)} USD`
                 ),
               ])
@@ -1254,7 +1330,7 @@ function buildActiveOrdersTab() {
               el('div', null, [
                 el('div', { style: { color: '#ffffff', fontWeight: '500' } }, payMethod),
                 !isCod && order.senderWalletPhone
-                  ? el('div', { className: 'tabular-nums', style: { color: 'var(--text-secondary)' } }, `Wallet: ${order.senderWalletPhone}`)
+                  ? el('div', { className: 'tabular-nums', style: { color: 'var(--ink-secondary)' } }, `Wallet: ${order.senderWalletPhone}`)
                   : null,
               ]),
 
@@ -1280,7 +1356,7 @@ function buildActiveOrdersTab() {
           ),
 
           el('div', { className: 'chef-order-footer' }, [
-            el('div', { style: { fontSize: '0.75rem', color: 'var(--text-secondary)' } }, [
+            el('div', { style: { fontSize: '0.75rem', color: 'var(--ink-secondary)' } }, [
               'Delivery: ',
               el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, formatPriceUSD(order.deliveryFee)),
               ' · Total: ',
@@ -1288,7 +1364,7 @@ function buildActiveOrdersTab() {
                 'span',
                 {
                   className: 'tabular-nums text-cyan-accent',
-                  style: { fontSize: '0.875rem', fontWeight: '600' },
+                  style: { fontSize: '0.9375rem', fontWeight: '700' },
                 },
                 `${formatPriceUSD(order.grandTotal)} USD`
               ),
@@ -1301,8 +1377,8 @@ function buildActiveOrdersTab() {
                       'button',
                       {
                         type: 'button',
-                        className: 'ocean-pill-btn',
-                        style: { padding: '0.375rem 0.875rem', borderRadius: '9999px', fontSize: '0.75rem', color: '#ffffff' },
+                        className: 'gallery-btn-primary',
+                        style: { height: '2.125rem', padding: '0 0.875rem', fontSize: '0.75rem' },
                         onClick: () => void updateOrder(order.id, { status: OrderStatus.IN_PROGRESS }),
                       },
                       'Start Preparing'
@@ -1356,7 +1432,6 @@ function buildActiveOrdersTab() {
                     {
                       type: 'button',
                       className: 'chef-pill-btn',
-                      style: { padding: '0.375rem 0.875rem', borderColor: 'rgba(103, 232, 249, 0.3)' },
                       onClick: () => void updateOrder(order.id, { isArchived: true }),
                     },
                     [createIcon('archive', 'icon-sm text-cyan-accent'), el('span', null, 'Archive Order')]
@@ -1387,7 +1462,6 @@ function buildArchivedOrdersTab() {
             {
               type: 'button',
               className: 'chef-logout-btn',
-              style: { padding: '0.5rem 1rem', backgroundColor: 'rgba(76, 5, 25, 0.6)' },
               onClick: () => {
                 state.confirmDeleteAction = {
                   type: 'bulk',
@@ -1407,7 +1481,6 @@ function buildArchivedOrdersTab() {
           {
             type: 'button',
             className: 'chef-logout-btn',
-            style: { padding: '0.5rem 1rem' },
             onClick: () => {
               state.confirmDeleteAction = { type: 'clearAll' };
               renderModals();
@@ -1438,7 +1511,7 @@ function buildArchivedOrdersTab() {
           el('tr', null, [
             el(
               'td',
-              { colSpan: 8, style: { padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)' } },
+              { colSpan: 8, style: { padding: '2.5rem', textAlign: 'center', color: 'var(--ink-secondary)' } },
               'No archived orders yet.'
             ),
           ]),
@@ -1457,16 +1530,16 @@ function buildArchivedOrdersTab() {
                 },
               }),
             ]),
-            el('td', { className: 'font-luxury-display tabular-nums', style: { color: '#ffffff' } }, order.orderCode),
+            el('td', { className: 'font-luxury-display tabular-nums', style: { color: '#ffffff', fontWeight: '600' } }, order.orderCode),
             el('td', null, [
               el('div', { style: { color: '#ffffff' } }, order.customerName),
-              el('div', { className: 'tabular-nums', style: { color: 'var(--text-muted)' } }, order.customerPhone),
+              el('div', { className: 'tabular-nums', style: { color: 'var(--ink-muted)', fontSize: '0.75rem' } }, order.customerPhone),
             ]),
-            el('td', null, order.status),
+            el('td', null, el('span', { className: statusBadgeClass(order.status) }, order.status)),
             el('td', null, [
               el('div', null, order.paymentMethod),
               order.senderWalletPhone
-                ? el('div', { className: 'tabular-nums', style: { color: 'var(--text-muted)' } }, order.senderWalletPhone)
+                ? el('div', { className: 'tabular-nums', style: { color: 'var(--ink-muted)', fontSize: '0.75rem' } }, order.senderWalletPhone)
                 : null,
             ]),
             el(
@@ -1474,9 +1547,9 @@ function buildArchivedOrdersTab() {
               { className: 'tabular-nums text-cyan-accent', style: { fontWeight: '600' } },
               `${formatPriceUSD(order.grandTotal)} USD`
             ),
-            el('td', { style: { color: 'var(--text-secondary)' } }, new Date(order.createdAt).toLocaleDateString()),
+            el('td', { style: { color: 'var(--ink-secondary)' } }, new Date(order.createdAt).toLocaleDateString()),
             el('td', { style: { textAlign: 'right' } }, [
-              el('div', { style: { display: 'inline-flex', alignItems: 'center', gap: '0.5rem' } }, [
+              el('div', { style: { display: 'inline-flex', alignItems: 'center', gap: '0.375rem' } }, [
                 order.receiptImageDataUrl
                   ? el(
                       'button',
@@ -1520,7 +1593,7 @@ function buildArchivedOrdersTab() {
           ])
         );
 
-  const tableCard = el('div', { className: 'ocean-glass-card chef-table-wrap' }, [
+  const tableCard = el('div', { className: 'chef-table-wrap' }, [
     el('table', { className: 'chef-table' }, [
       el('thead', null, [
         el('tr', null, [
@@ -1538,7 +1611,7 @@ function buildArchivedOrdersTab() {
     ]),
   ]);
 
-  return el('div', { style: { display: 'flex', flexDirection: 'column', gap: '1rem' } }, [toolbar, tableCard]);
+  return el('div', { className: 'chef-tab-stack' }, [toolbar, tableCard]);
 }
 
 function buildAnalyticsTab() {
@@ -1553,14 +1626,13 @@ function buildAnalyticsTab() {
   const topBar = el('div', { className: 'chef-toolbar-row' }, [
     el(
       'div',
-      { style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' } },
+      { style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.375rem' } },
       periods.map((p) =>
         el(
           'button',
           {
             type: 'button',
             className: `category-pill ${state.period === p.id ? 'active' : ''}`,
-            style: { textTransform: 'none', letterSpacing: '0.02em' },
             onClick: () => {
               state.period = p.id;
               renderMainSection();
@@ -1576,7 +1648,6 @@ function buildAnalyticsTab() {
       {
         type: 'button',
         className: 'chef-pill-btn',
-        style: { padding: '0.375rem 1rem' },
         onClick: () => void handleResetAnalyticsBaseline(),
       },
       [createIcon('rotateCcw', 'icon-sm text-cyan-accent'), el('span', null, 'Reset Analytics Baseline')]
@@ -1585,8 +1656,8 @@ function buildAnalyticsTab() {
 
   const kpis = [
     { label: 'Total Sales Revenue', value: formatPriceUSD(analyticsData.totalRevenue), color: '#ffffff' },
-    { label: 'Total Net Profit', value: formatPriceUSD(analyticsData.totalNetProfit), color: '#6ee7b7' },
-    { label: 'Profit Margin', value: `${analyticsData.marginPct.toFixed(1)}%`, color: 'var(--accent-ocean-light)' },
+    { label: 'Total Net Profit', value: formatPriceUSD(analyticsData.totalNetProfit), color: 'var(--emerald)' },
+    { label: 'Profit Margin', value: `${analyticsData.marginPct.toFixed(1)}%`, color: 'var(--accent-soft)' },
     { label: 'Completed Orders', value: String(analyticsData.completedCount), color: '#ffffff' },
     { label: 'Total Items Sold', value: String(analyticsData.totalItemsSold), color: '#ffffff' },
   ];
@@ -1595,15 +1666,15 @@ function buildAnalyticsTab() {
     'div',
     { className: 'chef-kpi-grid' },
     kpis.map((k) =>
-      el('div', { className: 'ocean-glass-card chef-kpi-card' }, [
+      el('div', { className: 'chef-kpi-card' }, [
         el(
           'div',
           {
             style: {
-              fontSize: '11px',
+              fontSize: '0.6875rem',
               textTransform: 'uppercase',
-              letterSpacing: '0.16em',
-              color: 'var(--text-secondary)',
+              letterSpacing: '0.12em',
+              color: 'var(--ink-muted)',
             },
           },
           k.label
@@ -1612,7 +1683,7 @@ function buildAnalyticsTab() {
           'div',
           {
             className: 'font-luxury-display tabular-nums',
-            style: { marginTop: '0.5rem', fontSize: '1.5rem', color: k.color },
+            style: { marginTop: '0.5rem', fontSize: '1.75rem', fontWeight: '600', color: k.color, lineHeight: '1.1' },
           },
           k.value
         ),
@@ -1620,13 +1691,12 @@ function buildAnalyticsTab() {
     )
   );
 
-  const subTabs = el('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' } }, [
+  const subTabs = el('div', { style: { display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' } }, [
     el(
       'button',
       {
         type: 'button',
         className: `category-pill ${state.analyticsSubTab === 'orders' ? 'active' : ''}`,
-        style: { textTransform: 'none', letterSpacing: '0.02em' },
         onClick: () => {
           state.analyticsSubTab = 'orders';
           renderMainSection();
@@ -1639,7 +1709,6 @@ function buildAnalyticsTab() {
       {
         type: 'button',
         className: `category-pill ${state.analyticsSubTab === 'products' ? 'active' : ''}`,
-        style: { textTransform: 'none', letterSpacing: '0.02em' },
         onClick: () => {
           state.analyticsSubTab = 'products';
           renderMainSection();
@@ -1657,27 +1726,27 @@ function buildAnalyticsTab() {
             el('tr', null, [
               el(
                 'td',
-                { colSpan: 7, style: { padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)' } },
+                { colSpan: 7, style: { padding: '2.5rem', textAlign: 'center', color: 'var(--ink-secondary)' } },
                 'No completed orders in this period.'
               ),
             ]),
           ]
         : analyticsData.finishedOrders.map((o) =>
             el('tr', null, [
-              el('td', { className: 'font-luxury-display tabular-nums', style: { color: '#ffffff' } }, o.orderCode),
+              el('td', { className: 'font-luxury-display tabular-nums', style: { color: '#ffffff', fontWeight: '600' } }, o.orderCode),
               el('td', null, [
                 el('div', { style: { color: '#ffffff' } }, o.customerName),
-                el('div', { className: 'tabular-nums', style: { color: 'var(--text-muted)' } }, o.customerPhone),
+                el('div', { className: 'tabular-nums', style: { color: 'var(--ink-muted)', fontSize: '0.75rem' } }, o.customerPhone),
               ]),
               el(
                 'td',
-                { style: { color: 'var(--text-ice)' } },
+                { style: { color: 'var(--ink)' } },
                 (o.items || []).map((i) => `${i.quantity}× ${i.name}`).join(', ')
               ),
               el('td', null, [
                 el('div', null, o.paymentMethod),
                 o.senderWalletPhone
-                  ? el('div', { className: 'tabular-nums', style: { color: 'var(--text-muted)' } }, o.senderWalletPhone)
+                  ? el('div', { className: 'tabular-nums', style: { color: 'var(--ink-muted)', fontSize: '0.75rem' } }, o.senderWalletPhone)
                   : null,
               ]),
               el(
@@ -1687,7 +1756,7 @@ function buildAnalyticsTab() {
               ),
               el(
                 'td',
-                { style: { color: 'var(--text-secondary)' } },
+                { style: { color: 'var(--ink-secondary)' } },
                 new Date(o.completedAt || o.updatedAt).toLocaleString()
               ),
               el('td', { style: { textAlign: 'right' } }, [
@@ -1696,7 +1765,6 @@ function buildAnalyticsTab() {
                   {
                     type: 'button',
                     className: 'chef-pill-btn',
-                    style: { padding: '0.25rem 0.75rem' },
                     onClick: () => handlePrintOrder(o),
                   },
                   [createIcon('printer', 'icon-sm'), el('span', null, 'Print')]
@@ -1705,7 +1773,7 @@ function buildAnalyticsTab() {
             ])
           );
 
-    tableCard = el('div', { className: 'ocean-glass-card chef-table-wrap' }, [
+    tableCard = el('div', { className: 'chef-table-wrap' }, [
       el('table', { className: 'chef-table' }, [
         el('thead', null, [
           el('tr', null, [
@@ -1728,7 +1796,7 @@ function buildAnalyticsTab() {
             el('tr', null, [
               el(
                 'td',
-                { colSpan: 8, style: { padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)' } },
+                { colSpan: 8, style: { padding: '2.5rem', textAlign: 'center', color: 'var(--ink-secondary)' } },
                 'No sold products logged in this period.'
               ),
             ]),
@@ -1736,17 +1804,17 @@ function buildAnalyticsTab() {
         : analyticsData.soldRows.map((r) =>
             el('tr', null, [
               el('td', { style: { color: '#ffffff', fontWeight: '500' } }, r.productName),
-              el('td', { style: { color: 'var(--text-secondary)' } }, r.category),
+              el('td', { style: { color: 'var(--ink-secondary)' } }, r.category),
               el('td', { className: 'tabular-nums' }, String(r.quantity)),
               el('td', { className: 'tabular-nums' }, formatPriceUSD(r.unitPrice)),
               el('td', { className: 'tabular-nums', style: { color: '#ffffff' } }, formatPriceUSD(r.lineTotal)),
               el(
                 'td',
-                { className: 'tabular-nums', style: { color: '#6ee7b7' } },
+                { className: 'tabular-nums text-emerald-accent' },
                 `${formatPriceUSD(r.unitProfit)} / ${formatPriceUSD(r.totalProfit)}`
               ),
               el('td', { className: 'tabular-nums text-cyan-accent' }, r.orderCode),
-              el('td', { style: { color: 'var(--text-secondary)' } }, new Date(r.soldAt).toLocaleString()),
+              el('td', { style: { color: 'var(--ink-secondary)' } }, new Date(r.soldAt).toLocaleString()),
             ])
           );
 
@@ -1762,14 +1830,14 @@ function buildAnalyticsTab() {
               el('td', { className: 'tabular-nums text-cyan-accent' }, `${formatPriceUSD(totalLineSum)} USD`),
               el(
                 'td',
-                { colSpan: 3, className: 'tabular-nums', style: { color: '#6ee7b7' } },
+                { colSpan: 3, className: 'tabular-nums text-emerald-accent' },
                 `Net Profit: ${formatPriceUSD(analyticsData.totalNetProfit)} USD`
               ),
             ]),
           ])
         : null;
 
-    tableCard = el('div', { className: 'ocean-glass-card chef-table-wrap' }, [
+    tableCard = el('div', { className: 'chef-table-wrap' }, [
       el('table', { className: 'chef-table' }, [
         el('thead', null, [
           el('tr', null, [
@@ -1813,7 +1881,7 @@ function buildSettingsTab() {
   const form = el(
     'form',
     {
-      className: 'ocean-glass-card chef-settings-form',
+      className: 'chef-settings-form',
       onSubmit: handleSaveSettings,
     },
     [
@@ -1821,12 +1889,12 @@ function buildSettingsTab() {
         el('div', null, [
           el(
             'h2',
-            { className: 'font-luxury-display', style: { fontSize: '1.25rem', color: '#ffffff', fontWeight: '400' } },
+            { className: 'font-luxury-display', style: { fontSize: '1.375rem', color: '#ffffff', fontWeight: '500' } },
             'Store Control'
           ),
           el(
             'p',
-            { style: { fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' } },
+            { style: { fontSize: '0.8125rem', color: 'var(--ink-secondary)', marginTop: '0.25rem' } },
             'Changes propagate live to storefront status, cart, checkout invoice, and footer.'
           ),
         ]),
@@ -1903,12 +1971,12 @@ function buildSettingsTab() {
         el('div', null, [
           el(
             'h3',
-            { className: 'font-luxury-display', style: { fontSize: '1rem', color: '#ffffff', fontWeight: '400' } },
+            { className: 'font-luxury-display', style: { fontSize: '1.125rem', color: '#ffffff', fontWeight: '500' } },
             'Hero Section Text'
           ),
           el(
             'p',
-            { style: { fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.125rem' } },
+            { style: { fontSize: '0.8125rem', color: 'var(--ink-secondary)', marginTop: '0.15rem' } },
             'Customize the headline, eyebrow code, and subtitle shown over the main hero showcase.'
           ),
         ]),
@@ -1970,14 +2038,13 @@ function buildSettingsTab() {
           {
             type: 'submit',
             disabled: state.settingsSaving,
-            className: 'ocean-pill-btn',
+            className: 'gallery-btn-primary',
             style: {
-              padding: '0.625rem 1.5rem',
-              borderRadius: '9999px',
+              height: '2.625rem',
+              padding: '0 1.5rem',
               fontSize: '0.75rem',
               textTransform: 'uppercase',
-              letterSpacing: '0.16em',
-              color: '#ffffff',
+              letterSpacing: '0.12em',
             },
           },
           state.settingsSaving ? 'Saving...' : 'Save Store Settings'
@@ -1991,12 +2058,12 @@ function buildSettingsTab() {
       el('div', null, [
         el(
           'h3',
-          { className: 'font-luxury-display', style: { fontSize: '1.25rem', color: '#ffffff', fontWeight: '400' } },
+          { className: 'font-luxury-display', style: { fontSize: '1.375rem', color: '#ffffff', fontWeight: '500' } },
           `Synced Catalog Preview (${state.products.length})`
         ),
         el(
           'p',
-          { style: { fontSize: '0.75rem', color: 'var(--text-secondary)' } },
+          { style: { fontSize: '0.8125rem', color: 'var(--ink-secondary)' } },
           'Live Google Sheets synchronization across all discovered category tabs.'
         ),
       ]),
@@ -2005,28 +2072,24 @@ function buildSettingsTab() {
         {
           type: 'button',
           disabled: state.catalogRefreshing,
-          className: 'ocean-pill-btn',
+          className: 'gallery-btn-primary',
           style: {
-            padding: '0.5rem 1rem',
-            borderRadius: '9999px',
+            height: '2.375rem',
+            padding: '0 1rem',
             fontSize: '0.75rem',
             textTransform: 'uppercase',
             letterSpacing: '0.08em',
-            color: '#ffffff',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.5rem',
           },
           onClick: () => void refreshChefProducts(true),
         },
         [
-          createIcon('refreshCw', `icon-sm text-cyan-accent ${state.catalogRefreshing ? 'animate-spin' : ''}`),
+          createIcon('refreshCw', `icon-sm ${state.catalogRefreshing ? 'animate-spin' : ''}`),
           el('span', null, 'Refresh from Google Sheets'),
         ]
       ),
     ]),
 
-    el('div', { className: 'ocean-glass-card chef-table-wrap' }, [
+    el('div', { className: 'chef-table-wrap' }, [
       el('table', { className: 'chef-table' }, [
         el('thead', null, [
           el('tr', null, [
@@ -2053,7 +2116,7 @@ function buildSettingsTab() {
                   el('span', { style: { color: '#ffffff', fontWeight: '500' } }, p.name),
                 ]),
               ]),
-              el('td', { className: 'text-cyan-accent' }, p.category),
+              el('td', { style: { color: 'var(--accent-warm)', fontWeight: '500' } }, p.category),
               el(
                 'td',
                 { className: 'tabular-nums', style: { fontWeight: '600', color: '#ffffff' } },
@@ -2063,7 +2126,7 @@ function buildSettingsTab() {
                 'td',
                 {
                   style: {
-                    color: 'var(--text-secondary)',
+                    color: 'var(--ink-secondary)',
                     maxWidth: '28rem',
                     overflow: 'hidden',
                     display: '-webkit-box',
@@ -2100,8 +2163,8 @@ function renderMainSection() {
 }
 
 function updateDashboardAfterPoll() {
-  updateHeaderAndTabsOnly();
-  // Never clobber Settings form inputs or Reject modal while editing
+  updateChromeOnly();
+  // Never clobber Settings form inputs while editing
   if (state.activeTab === 'settings') {
     return;
   }
@@ -2131,7 +2194,7 @@ function renderModals() {
           el(
             'div',
             {
-              className: 'ocean-glass-card chef-modal-lg',
+              className: 'chef-modal-lg',
               onClick: (e) => e.stopPropagation(),
             },
             [
@@ -2141,17 +2204,17 @@ function renderModals() {
                     'span',
                     {
                       style: {
-                        fontSize: '11px',
+                        fontSize: '0.6875rem',
                         textTransform: 'uppercase',
-                        letterSpacing: '0.18em',
-                        color: 'var(--accent-ocean-light)',
+                        letterSpacing: '0.16em',
+                        color: 'var(--accent-warm)',
                       },
                     },
                     'Payment Verification'
                   ),
                   el(
                     'h3',
-                    { className: 'font-luxury-display tabular-nums', style: { fontSize: '1.125rem', color: '#ffffff', fontWeight: '400' } },
+                    { className: 'font-luxury-display tabular-nums', style: { fontSize: '1.25rem', color: '#ffffff', fontWeight: '500' } },
                     `${order.orderCode} · Expected ${formatPriceUSD(order.grandTotal)} USD`
                   ),
                 ]),
@@ -2176,7 +2239,7 @@ function renderModals() {
                   {
                     style: {
                       fontSize: '0.75rem',
-                      color: 'var(--text-soft)',
+                      color: 'var(--ink-secondary)',
                       display: 'flex',
                       flexWrap: 'wrap',
                       justifyContent: 'space-between',
@@ -2194,8 +2257,8 @@ function renderModals() {
                       alt: `Receipt for ${order.orderCode}`,
                       style: {
                         width: '100%',
-                        borderRadius: '0.75rem',
-                        border: '1px solid rgba(103, 232, 249, 0.2)',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--hairline)',
                       },
                     })
                   : null,
@@ -2208,17 +2271,13 @@ function renderModals() {
                       {
                         href: safeReceipt,
                         download: `receipt-${order.orderCode}.png`,
-                        className: 'ocean-pill-btn',
+                        className: 'gallery-btn-primary',
                         style: {
-                          padding: '0.5rem 1rem',
-                          borderRadius: '9999px',
+                          height: '2.25rem',
+                          padding: '0 1rem',
                           fontSize: '0.75rem',
                           textTransform: 'uppercase',
                           letterSpacing: '0.08em',
-                          color: '#ffffff',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.375rem',
                         },
                       },
                       [createIcon('download', 'icon-sm'), el('span', null, 'Download Image')]
@@ -2260,7 +2319,7 @@ function renderModals() {
       rows: '3',
       required: true,
       value: state.rejectReason,
-      placeholder: 'e.g., Transfer receipt mismatch or item out of stock',
+      placeholder: 'e.g., Delivery area unreachable or piece out of stock',
       className: 'dark-textarea',
       onInput: (e) => {
         state.rejectReason = e.target.value;
@@ -2282,7 +2341,7 @@ function renderModals() {
           el(
             'div',
             {
-              className: 'ocean-glass-card chef-modal-sm',
+              className: 'chef-modal-sm',
               onClick: (e) => e.stopPropagation(),
             },
             [
@@ -2290,13 +2349,13 @@ function renderModals() {
                 createIcon('xCircle', 'icon-lg'),
                 el(
                   'h3',
-                  { className: 'font-luxury-display', style: { fontSize: '1.125rem', color: '#ffffff', fontWeight: '400' } },
+                  { className: 'font-luxury-display', style: { fontSize: '1.25rem', color: '#ffffff', fontWeight: '500' } },
                   `Reject Order ${target.orderCode}`
                 ),
               ]),
               el(
                 'p',
-                { style: { fontSize: '0.75rem', color: 'var(--text-secondary)' } },
+                { style: { fontSize: '0.8125rem', color: 'var(--ink-secondary)' } },
                 'Provide a clear reason. The customer will see this exact note in My Orders.'
               ),
               textarea,
@@ -2306,7 +2365,6 @@ function renderModals() {
                   {
                     type: 'button',
                     className: 'chef-pill-btn',
-                    style: { padding: '0.5rem 1rem' },
                     onClick: () => {
                       state.rejectTarget = null;
                       renderModals();
@@ -2347,18 +2405,18 @@ function renderModals() {
           el(
             'div',
             {
-              className: 'ocean-glass-card chef-modal-sm',
+              className: 'chef-modal-sm',
               onClick: (e) => e.stopPropagation(),
             },
             [
               el(
                 'h3',
-                { className: 'font-luxury-display', style: { fontSize: '1.125rem', color: '#ffffff', fontWeight: '400' } },
+                { className: 'font-luxury-display', style: { fontSize: '1.25rem', color: '#ffffff', fontWeight: '500' } },
                 'Confirm Permanent Deletion'
               ),
               el(
                 'p',
-                { style: { fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.6' } },
+                { style: { fontSize: '0.8125rem', color: 'var(--ink-secondary)', lineHeight: '1.6' } },
                 msg
               ),
               el('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' } }, [
@@ -2367,7 +2425,6 @@ function renderModals() {
                   {
                     type: 'button',
                     className: 'chef-pill-btn',
-                    style: { padding: '0.5rem 1rem' },
                     onClick: () => {
                       state.confirmDeleteAction = null;
                       renderModals();
@@ -2397,19 +2454,8 @@ function render() {
   if (state.authChecking) {
     clearNode(appRoot);
     appRoot.appendChild(
-      el('div', { className: 'chef-auth-center ocean-vignette' }, [
-        el(
-          'div',
-          {
-            style: {
-              fontSize: '0.75rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.2em',
-              color: 'var(--accent-ocean-light)',
-            },
-          },
-          'Initializing Atelier Console...'
-        ),
+      el('div', { className: 'chef-auth-center' }, [
+        el('div', { className: 'hero-eyebrow' }, 'Initializing Atelier Console...'),
       ])
     );
     return;
@@ -2423,8 +2469,13 @@ function render() {
   clearNode(appRoot);
   appRoot.append(
     el('div', { id: 'chef-toast-slot' }),
-    buildHeaderNode(),
-    el('main', { id: 'chef-main', className: 'container-xl chef-main' }),
+    el('div', { className: 'chef-workspace' }, [
+      buildSidebarNode(),
+      el('div', { className: 'chef-workspace-body' }, [
+        buildTopbarNode(),
+        el('main', { id: 'chef-main', className: 'chef-main' }),
+      ]),
+    ]),
     el('div', { id: 'chef-modals-root' })
   );
 
@@ -2469,7 +2520,7 @@ async function initChefDashboard() {
     const changed = state.firebaseUserEmail !== email;
     state.firebaseUserEmail = email;
     if (changed && state.authenticated) {
-      updateHeaderAndTabsOnly();
+      updateChromeOnly();
       if (email) {
         void refreshSettings();
         void refreshOrders();

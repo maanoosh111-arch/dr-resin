@@ -10,8 +10,8 @@ Full-stack e-commerce storefront and private Atelier/Chef management console bui
 ├── 999chef887/
 │   └── index.html               # Private Chef/Admin Dashboard (pure HTML5)
 ├── css/
-│   ├── style.css                # Complete Obsidian-Teal CSS3 design system & 80mm thermal print rules
-│   └── admin.css                # Chef/Admin console CSS3 layouts & components
+│   ├── style.css                # Editorial Obsidian Gallery CSS3 design system & 80mm thermal print rules
+│   └── admin.css                # Atelier Sidebar & Console CSS3 layouts & components
 ├── js/
 │   ├── config.js                # Storefront defaults, asset URLs, status constants, optional API base URL
 │   ├── utils.js                 # Safe DOM builder (`el`), USD formatting, WhatsApp links, Web Audio chime
@@ -19,8 +19,8 @@ Full-stack e-commerce storefront and private Atelier/Chef management console bui
 │   ├── firebase.js              # Official Firebase v13.4.0 CDN ES module client & Firestore sync
 │   ├── store.js                 # LocalStorage persistence for shopping bag & tracked order codes
 │   ├── api.js                   # Fetch API client for /api/* and /api/chef/* endpoints
-│   ├── storefront.js            # Customer Storefront controller (hero, 2/3/4 grid, carousel, checkout, My Orders)
-│   └── chef.js                  # Private Chef/Admin controller (PIN auth, orders, archive, KPIs, hero text editor, thermal print)
+│   ├── storefront.js            # Editorial Gallery storefront controller (hero, 2/3/4 grid, carousel, 3-step checkout, My Orders)
+│   └── chef.js                  # Private Chef/Admin sidebar console (PIN auth, orders, archive, KPIs, hero text editor, thermal print)
 ├── assets/images/               # Local high-resolution workshop & commission imagery
 ├── server.js                    # Pure Node.js ES module Express server & Google Sheets sync
 ├── firebase-applet-config.json  # Firebase Web SDK configuration
@@ -31,14 +31,16 @@ Full-stack e-commerce storefront and private Atelier/Chef management console bui
 
 ## Key Features Preserved
 
-- **Customer Storefront (`/`)**:
-  - Full-bleed showcase hero with live editable headline, eyebrow code, and subtitle managed from `/999chef887`.
-  - Responsive catalog grid synced live from Google Sheets (`2` columns on mobile, `3` on tablet, `4` on desktop).
+- **Editorial Obsidian Gallery Storefront (`/`)**:
+  - Compact 3-zone sticky top navigation bar with catalog search, My Orders tracker, and shopping bag.
+  - Full-bleed showcase hero with live editable headline, eyebrow code, and subtitle managed from `/999chef887`, paired with a 3-column Atelier overview strip.
+  - Sticky category filter bar and unboxed gallery catalog grid synced live from Google Sheets (`2` columns on mobile, `3` on tablet `< 1024px`, `4` on desktop `>= 1024px`).
   - Multi-image product carousels (touch swipe, arrows, dots) with `object-fit: contain` full-size product imagery.
-  - Product detail modal with deep-link URL routing (`/:slug` / `?product=...`) and shareable link copy.
-  - Slide-over shopping bag & **Pay on Delivery** checkout drawer with automatic `ORD-XXXX` tracking codes and WhatsApp order confirmation.
+  - 2-column product detail modal with deep-link URL routing (`/:slug` / `?product=...`) and shareable link copy.
+  - Slide-over shopping bag & 3-step **Pay on Delivery** checkout drawer (`Bag` -> `Delivery` -> `Confirmed`) with automatic `ORD-XXXX` tracking codes and WhatsApp order confirmation.
   - **My Orders** modal with 4-second live polling, `BroadcastChannel` cross-tab sync, phone/code lookup, and rejection note display.
-- **Private Chef / Admin Dashboard (`/999chef887`)**:
+- **Private Chef / Admin Sidebar Console (`/999chef887`)**:
+  - Persistent desktop sidebar + contextual workspace topbar (collapsing to a compact tab bar on tablet/mobile).
   - First-run Admin PIN setup or login with show/hide toggle and signed HttpOnly/Bearer session tokens.
   - Real-time order arrival toast & Web Audio synthesizer chime (unlockable/mutable).
   - **Active Orders**: status filters (`All`, `Pending`, `In Progress`, `Finished`, `Rejected`), 80mm thermal receipt printing, `Start Preparing`, `Confirm Finished & Delivered`, `Reject` (with mandatory reason), and `Archive Order`.
@@ -56,7 +58,7 @@ Configure these in `.env` (see `.env.example`):
 - `CHEF_PIN` (optional; if omitted, the Chef sets an initial PIN via `/999chef887` on first launch)
 - `SUPABASE_URL` & `SUPABASE_SERVICE_ROLE_KEY` (optional PostgREST persistence sync)
 
-## Running Locally & Production Deployment
+## Running Locally & Deployment
 
 ```bash
 npm install
@@ -65,4 +67,12 @@ npm run start
 
 - **Storefront**: `http://localhost:3000/`
 - **Private Chef Console**: `http://localhost:3000/999chef887`
-- **Static Frontend Hosting (Optional)**: Upload `index.html`, `999chef887/`, `css/`, `js/`, `assets/`, and `firebase-applet-config.json` to any static host, and set `window.DR_API_BASE_URL = 'https://your-backend-origin.com'` before loading `/js/storefront.js` and `/js/chef.js` if the Node.js API server runs on a separate origin.
+
+### Cloudflare Pages vs. Cloudflare Workers
+
+Because this application combines a pure static HTML/CSS/JS frontend with a stateful Node.js/Express backend (`server.js` using `fs` for `.data/store.json` and Node `crypto`):
+
+- **Cloudflare Pages (Best for static frontend hosting)**: Deploy `index.html`, `999chef887/`, `css/`, `js/`, `assets/`, and `firebase-applet-config.json` directly on Pages, while hosting `server.js` on a Node.js runtime (such as Cloud Run, Railway, Render, or Fly.io) or proxying `/api/*` through Pages Functions to your backend origin (with CORS headers or `window.DR_API_BASE_URL` configured if cross-origin).
+- **Cloudflare Workers**: Runs in V8 isolates rather than a stateful Node.js filesystem server, so `server.js` (Express + `.data/store.json`) cannot run directly as-is on Workers without rewriting the backend routes to Web Standard `fetch()` handlers backed by external storage (Firestore REST, Supabase, D1, or KV).
+- **Simplest single-host setup**: Deploy the entire project as a single Node.js container (`npm run start`) behind Cloudflare DNS/proxy so `/`, `/999chef887`, and `/api/*` all run on one origin with zero extra proxy setup.
+
