@@ -93,6 +93,10 @@
           "maxLength": 32,
           "description": "Sender wallet phone number for electronic transfers."
         },
+        "items": {
+          "type": "array",
+          "description": "Snapshot of ordered line items (max 50)."
+        },
         "subtotal": {
           "type": "number",
           "description": "Order subtotal in USD."
@@ -184,6 +188,26 @@
         }
       },
       "required": ["ok"]
+    },
+    "ChefMeta": {
+      "title": "ChefMeta",
+      "description": "Private chef dashboard metadata such as analytics period baseline.",
+      "type": "object",
+      "properties": {
+        "analyticsBaselineAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64,
+          "description": "Timestamp baseline for reset analytics period."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64,
+          "description": "Last update timestamp."
+        }
+      },
+      "required": ["updatedAt"]
     }
   },
   "firestore": {
@@ -198,6 +222,10 @@
     "/admins/{adminUid}": {
       "schema": { "$ref": "#/entities/AdminUser" },
       "description": "Admin role directory for Firestore security rules."
+    },
+    "/chefMeta/{metaId}": {
+      "schema": { "$ref": "#/entities/ChefMeta" },
+      "description": "Admin-only chef console metadata including analytics baseline."
     },
     "/test/{docId}": {
       "schema": { "$ref": "#/entities/TestConnection" },

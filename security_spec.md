@@ -2,10 +2,11 @@
 
 ## Data Invariants
 1. `storeSettings/{settingId}` contains zero PII and is readable only via targeted `get` by valid document ID (`^[a-zA-Z0-9_\-]+$`), never via `list`, and writable only by verified administrators (`isAdmin()`).
-2. `orders/{orderId}` contains customer PII (`customerName`, `customerPhone`, `deliveryAddress`, `senderWalletPhone`). All reads, lists, creations, updates, and deletions via Firestore client SDK require verified `isAdmin()` authorization.
-3. `admins/{adminUid}` is strictly read-only for the owning verified admin and never self-writable by arbitrary signed-in users.
-4. `test/connection` permits single-document `get` only to validate SDK connectivity and forbids `list` and all writes.
-5. Every string field enforces explicit `.size()` boundaries and every write validates exact allowed keys via `keys().hasAll(...)` and `keys().hasOnly(...)` as well as `affectedKeys().hasOnly(...)` on updates.
+2. `orders/{orderId}` contains customer PII (`customerName`, `customerPhone`, `deliveryAddress`, `senderWalletPhone`) and a bounded immutable `items` snapshot (max 50). All reads, lists, creations, updates, and deletions via Firestore client SDK require verified `isAdmin()` authorization.
+3. `chefMeta/{metaId}` stores private dashboard metadata (`analyticsBaselineAt`) and restricts all `get`, `create`, and `update` operations to verified `isAdmin()` accounts (`list` and `delete` denied).
+4. `admins/{adminUid}` is strictly read-only for the owning verified admin and never self-writable by arbitrary signed-in users.
+5. `test/connection` permits single-document `get` only to validate SDK connectivity and forbids `list` and all writes.
+6. Every string field enforces explicit `.size()` boundaries and every write validates exact allowed keys via `keys().hasAll(...)` and `keys().hasOnly(...)` as well as `affectedKeys().hasOnly(...)` on updates.
 
 ## Dirty Dozen Adversarial Payloads
 1. Unauthenticated write to `/storeSettings/public` -> `PERMISSION_DENIED`.

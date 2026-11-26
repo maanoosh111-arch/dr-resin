@@ -4,18 +4,381 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DR — Premium Resin Products</title>
-    <meta name="description" content="Handcrafted walnut & deep ocean epoxy resin wall clocks, live-edge tables, collector games, and bespoke commissions." />
+    <meta
+      name="description"
+      content="Handcrafted walnut & deep ocean epoxy resin wall clocks, live-edge tables, collector games, and bespoke commissions."
+    />
     <meta property="og:title" content="DR — Premium Resin Products" />
-    <meta property="og:description" content="Handcrafted walnut & deep ocean epoxy resin wall clocks, live-edge tables, collector games, and bespoke commissions." />
+    <meta
+      property="og:description"
+      content="Handcrafted walnut & deep ocean epoxy resin wall clocks, live-edge tables, collector games, and bespoke commissions."
+    />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="icon" type="image/png" href="https://res.cloudinary.com/rn7rovnn/image/upload/v1795612692/watermarked_img_7354890140086322614-Photoroom.png" />
+    <link
+      rel="icon"
+      type="image/png"
+      href="https://res.cloudinary.com/rn7rovnn/image/upload/v1795612692/watermarked_img_7354890140086322614-Photoroom.png"
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lalezar&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/style.css" />
   </head>
-  <body class="bg-[#05090F] text-[#F4F7F9] antialiased selection:bg-[#2AA7C9]/30 selection:text-white">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+  <body>
+    <div id="storefront-app" class="page-shell">
+      <!-- Closed-Store Alert Banner -->
+      <div id="closed-alert-bar" class="closed-alert-bar hidden" role="alert"></div>
+
+      <!-- Sticky Translucent Ocean-Glass Header -->
+      <header class="site-header">
+        <div class="container-xl site-header-inner">
+          <button
+            id="brand-reset-btn"
+            type="button"
+            class="brand-btn"
+            aria-label="DR Resin Atelier Home"
+          >
+            <img
+              src="https://res.cloudinary.com/rn7rovnn/image/upload/v1795612692/watermarked_img_7354890140086322614-Photoroom.png"
+              alt="DR Premium Resin Logo"
+              referrerpolicy="no-referrer"
+              class="brand-logo"
+            />
+            <span class="brand-wordmark">
+              <span class="brand-name">DR</span>
+              <span class="brand-sub">Resin Atelier</span>
+            </span>
+          </button>
+
+          <div class="header-search-wrap">
+            <div class="search-box">
+              <span id="header-search-icon" class="search-icon"></span>
+              <input
+                id="search-input"
+                type="text"
+                placeholder="Search pieces, categories..."
+                aria-label="Search resin pieces"
+                class="search-input"
+              />
+              <button
+                id="search-clear-btn"
+                type="button"
+                aria-label="Clear search"
+                class="search-clear-btn hidden"
+              ></button>
+            </div>
+          </div>
+
+          <div class="header-actions">
+            <span class="currency-badge">USD</span>
+            <button id="open-orders-btn" type="button" class="header-orders-btn">
+              <span id="header-orders-icon"></span>
+              <span class="hide-xs">My Orders</span>
+            </button>
+            <button
+              id="open-bag-btn"
+              type="button"
+              aria-label="Open shopping cart"
+              class="ocean-pill-btn header-bag-btn"
+            >
+              <span id="header-bag-icon"></span>
+              <span class="hide-xs">Bag</span>
+              <span id="bag-count-badge" class="bag-count-badge tabular-nums hidden">0</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- HERO SECTION — Full-Bleed Showcase -->
+      <section class="hero-section">
+        <div class="hero-bg-layer">
+          <img
+            id="hero-bg-img"
+            src="https://res.cloudinary.com/rn7rovnn/image/upload/v1795616597/0a47c2be-8507-4a39-8895-be5352c6ee9f.webp"
+            alt="DR Premium Walnut and Deep Ocean Epoxy Resin Showcase"
+            referrerpolicy="no-referrer"
+            class="hero-bg-img animate-hero-reveal"
+          />
+          <div class="hero-scrim"></div>
+        </div>
+
+        <div class="container-xl hero-content">
+          <div class="hero-grid">
+            <div class="hero-headline-col">
+              <div id="hero-eyebrow" class="hero-eyebrow">DR-4802-OCN</div>
+              <h1 id="hero-title" class="hero-title">
+                NATURAL WALNUT &amp; DEEP OCEAN EPOXY RESIN
+              </h1>
+              <p id="hero-subtitle" class="hero-subtitle">DR - Premium Resin Products</p>
+              <div class="hero-cta-wrap">
+                <button id="discover-pieces-btn" type="button" class="ocean-pill-btn hero-cta-btn">
+                  <span>Discover Pieces</span>
+                  <span id="discover-pieces-icon"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3-Card Story Strip -->
+          <div class="story-strip">
+            <button id="story-artisanship-btn" type="button" class="story-card">
+              <img
+                src="/assets/images/story_artisanship_1795617284103.jpg"
+                alt="Artisanship"
+                class="story-card-img story-card-img--grayscale"
+              />
+              <span class="story-card-overlay"></span>
+              <span class="story-card-label">ARTISANSHIP</span>
+            </button>
+
+            <button id="story-material-btn" type="button" class="story-card">
+              <img
+                src="/assets/images/story_material_1795617284295.jpg"
+                alt="The Material"
+                class="story-card-img"
+              />
+              <span class="story-card-overlay"></span>
+              <span class="story-card-label">THE MATERIAL</span>
+            </button>
+
+            <button id="story-archive-btn" type="button" class="story-card">
+              <img
+                src="/assets/images/story_archive_1795617284285.jpg"
+                alt="The Archive"
+                class="story-card-img"
+              />
+              <span class="story-card-overlay"></span>
+              <span class="story-card-label">THE ARCHIVE</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- STORE CLOSED PANEL -->
+      <section id="closed-store-panel" class="closed-store-section hidden">
+        <div class="ocean-glass-card closed-store-card">
+          <div id="closed-lock-icon" class="closed-icon-badge"></div>
+          <span class="hero-eyebrow" style="letter-spacing: 0.22em">Atelier Temporarily Closed</span>
+          <h2 class="font-luxury-display" style="font-size: 1.75rem; color: #ffffff">
+            Catalog &amp; Orders Paused
+          </h2>
+          <p
+            id="closed-store-note"
+            style="font-size: 0.875rem; color: #b8c5ce; max-width: 28rem; line-height: 1.625"
+          ></p>
+          <div class="closed-hours-pill">
+            <span style="display: inline-flex; align-items: center; gap: 0.375rem">
+              <span id="closed-clock-icon"></span>
+              <span>Opens: <strong id="closed-open-time" style="color: #ffffff"></strong></span>
+            </span>
+            <span style="color: rgba(103, 232, 249, 0.3)">|</span>
+            <span>Closes: <strong id="closed-close-time" style="color: #ffffff"></strong></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- LIVE CATALOG SECTION -->
+      <div id="live-catalog-wrapper" style="display: flex; flex-direction: column; flex: 1 1 0%">
+        <div class="category-bar">
+          <div class="container-xl category-bar-inner">
+            <div id="category-pills-row" class="category-pills-row no-scrollbar"></div>
+            <button id="refresh-catalog-btn" type="button" class="refresh-catalog-btn">
+              <span id="refresh-catalog-icon"></span>
+              <span class="hide-xs">Refresh Catalog</span>
+            </button>
+          </div>
+        </div>
+
+        <main id="collection" class="container-xl collection-section">
+          <div class="section-header">
+            <h2 class="section-title">CURATED COLLECTION</h2>
+            <p class="section-subtitle">
+              The fusion of natural edge walnut and vibrant ocean resin
+            </p>
+          </div>
+
+          <div id="catalog-grid-container"></div>
+        </main>
+      </div>
+
+      <!-- BESPOKE COMMISSIONS BANNER -->
+      <section id="bespoke" class="container-xl bespoke-section">
+        <div class="bespoke-banner">
+          <img
+            src="/assets/images/banner_bespoke_commission_1795617285711.jpg"
+            alt="Bespoke Epoxy Resin Pouring Workshop"
+            class="bespoke-banner-img"
+          />
+          <div class="bespoke-banner-scrim"></div>
+          <div class="bespoke-banner-content">
+            <h2 class="bespoke-title">BESPOKE COMMISSIONS</h2>
+            <p class="bespoke-copy">
+              Collaborate with our artisans to design a custom walnut and deep ocean epoxy
+              masterpiece tailored to your space.
+            </p>
+            <div>
+              <a
+                id="bespoke-whatsapp-link"
+                href="#"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="ocean-pill-btn bespoke-cta"
+              >
+                <span>Begin Your Commission</span>
+                <span id="bespoke-arrow-icon"></span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DARK FOOTER (Zero /chef links) -->
+      <footer class="site-footer">
+        <div class="container-xl">
+          <div class="footer-grid">
+            <div class="footer-col-brand">
+              <div class="footer-brand-head">
+                <img
+                  src="https://res.cloudinary.com/rn7rovnn/image/upload/v1795612692/watermarked_img_7354890140086322614-Photoroom.png"
+                  alt="DR Resin Logo"
+                  referrerpolicy="no-referrer"
+                  class="footer-logo"
+                />
+                <div>
+                  <div class="footer-brand-title">DR RESIN</div>
+                  <div class="footer-brand-sub">DR - Premium Resin Products</div>
+                </div>
+              </div>
+              <p class="footer-brand-desc">
+                Museum-grade walnut wood and deep ocean epoxy resin wall clocks, live-edge tables,
+                and collector pieces crafted for enduring luxury.
+              </p>
+            </div>
+
+            <div class="footer-col-service">
+              <div class="ocean-glass-card footer-service-card">
+                <div class="footer-service-kicker">Customer Service &amp; Complaints</div>
+                <div class="footer-service-row">
+                  <div>
+                    <a href="tel:01274211223" class="footer-phone-link tabular-nums">
+                      0 12 74211223
+                    </a>
+                    <div id="footer-hours" class="footer-hours">Daily 10:00 AM – 11:00 PM</div>
+                  </div>
+                  <div class="footer-service-btns">
+                    <button id="footer-copy-phone-btn" type="button" class="btn-copy-dark"></button>
+                    <a
+                      id="footer-whatsapp-link"
+                      href="#"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="btn-whatsapp-pill"
+                    >
+                      <span id="footer-wa-icon"></span>
+                      <span>WhatsApp</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="footer-col-delivery">
+              <div>
+                <div
+                  style="
+                    font-size: 11px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.18em;
+                    color: #7c8c99;
+                  "
+                >
+                  Delivery &amp; Settlement
+                </div>
+                <div class="footer-delivery-badges">
+                  <span id="footer-delivery-chip" class="footer-chip tabular-nums">
+                    Delivery: $15 USD
+                  </span>
+                  <span class="footer-chip">Pay on Delivery</span>
+                </div>
+              </div>
+
+              <button
+                id="back-to-top-btn"
+                type="button"
+                aria-label="Scroll to top"
+                class="back-to-top-btn"
+              ></button>
+            </div>
+          </div>
+
+          <div class="footer-bottom">
+            <span id="footer-copyright"></span>
+            <span>HANDCRAFTED WALNUT &amp; DEEP OCEAN EPOXY</span>
+          </div>
+        </div>
+      </footer>
+
+      <!-- Modal / Drawer Root Mounts -->
+      <div id="product-detail-root"></div>
+      <div id="cart-drawer-root"></div>
+      <div id="my-orders-root"></div>
+    </div>
+
+    <!-- Floating Designer Credit Badge (Physical Bottom-Right, RTL-Safe) -->
+    <aside
+      id="floating-credit-wrap"
+      class="floating-credit-wrap"
+      dir="ltr"
+      aria-label="Designer Credit"
+    >
+      <div id="floating-credit-card" class="floating-credit-card" aria-hidden="false">
+        <button
+          id="credit-close-btn"
+          type="button"
+          class="credit-close-btn"
+          aria-label="Hide credit badge"
+          aria-expanded="true"
+          title="Hide"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+
+        <span class="credit-label">Designed By:</span>
+        <span class="credit-name">Muhammad H.</span>
+        <span class="credit-label">Contact</span>
+        <a
+          href="https://api.whatsapp.com/send/?phone=201204457813&text&type=phone_number&app_absent=0"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="credit-wa-link"
+          aria-label="Contact Muhammad H. on WhatsApp"
+        >
+          <img
+            src="https://res.cloudinary.com/rn7rovnn/image/upload/v1795637560/whatsapp-vector-logo-icon-logotype-vector-social-media_901408-404.png"
+            alt="WhatsApp"
+            referrerpolicy="no-referrer"
+            class="credit-wa-icon"
+          />
+        </a>
+      </div>
+
+      <button
+        id="credit-reopen-tab"
+        type="button"
+        class="credit-reopen-tab"
+        aria-label="Show designer credit"
+        aria-hidden="true"
+        tabindex="-1"
+        title="Show credit"
+      >
+        <span aria-hidden="true">&#8249;</span>
+      </button>
+    </aside>
+
+    <script type="module" src="/js/storefront.js"></script>
   </body>
 </html>

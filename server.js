@@ -1,12 +1,12 @@
-import express, { type Request, type Response, type NextFunction } from 'express';
+import express from 'express';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { createServer as createViteServer } from 'vite';
 
 dotenv.config();
 
+const ROOT_DIR = process.cwd();
 const PORT = Number(process.env.PORT || 3000);
 const SPREADSHEET_ID =
   process.env.GOOGLE_SPREADSHEET_ID || '1dr4wiPp1-1SgAj4v0j_8-8MD7OQhqrgKt8yOTHxR_v0';
@@ -19,83 +19,10 @@ const SESSION_SECRET =
     ? process.env.SESSION_SECRET
     : crypto.randomBytes(32).toString('hex');
 
-const DATA_DIR = path.resolve(process.cwd(), '.data');
+const DATA_DIR = path.resolve(ROOT_DIR, '.data');
 const DB_FILE = path.join(DATA_DIR, 'store.json');
 
-interface ServerProduct {
-  id: string;
-  slug: string;
-  name: string;
-  category: string;
-  price: number;
-  cost: number;
-  profit: number;
-  description: string;
-  primaryImage: string;
-  extraImages: string[];
-  images: string[];
-}
-
-interface OrderItemRecord {
-  productId: string;
-  name: string;
-  category: string;
-  quantity: number;
-  unitPrice: number;
-  lineTotal: number;
-  unitProfitSnapshot: number;
-  image?: string;
-}
-
-interface OrderRecord {
-  id: string;
-  orderCode: string;
-  customerName: string;
-  customerPhone: string;
-  deliveryAddress: string;
-  deliveryNotes: string;
-  paymentMethod: string;
-  senderWalletPhone: string;
-  receiptImageDataUrl: string;
-  items: OrderItemRecord[];
-  subtotal: number;
-  deliveryFee: number;
-  grandTotal: number;
-  totalProfit: number;
-  status: 'Pending' | 'In Progress' | 'Finished' | 'Rejected';
-  rejectionReason: string;
-  isPaid: boolean;
-  isArchived: boolean;
-  isDeletedFromArchive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  completedAt?: string;
-}
-
-interface StoreSettingsRecord {
-  isOpen: boolean;
-  openTime: string;
-  closeTime: string;
-  customNote: string;
-  deliveryFee: number;
-  heroEyebrow: string;
-  heroTitle: string;
-  heroSubtitle: string;
-  supportPhone: string;
-  currency: string;
-  brandName: string;
-  updatedAt: string;
-}
-
-interface PersistedStore {
-  settings: StoreSettingsRecord;
-  orders: OrderRecord[];
-  nextOrderSeq: number;
-  analyticsBaselineAt: string | null;
-  adminPinHash: string | null;
-}
-
-const DEFAULT_STORE: PersistedStore = {
+const DEFAULT_STORE = {
   settings: {
     isOpen: true,
     openTime: '10:00 AM',
@@ -108,7 +35,7 @@ const DEFAULT_STORE: PersistedStore = {
     supportPhone: SUPPORT_PHONE,
     currency: CURRENCY,
     brandName: BRAND_NAME,
-    updatedAt: new Date().toISOString(),
+    updatedAt: '1970-01-01T00:00:00.000Z',
   },
   orders: [],
   nextOrderSeq: 1001,
@@ -116,14 +43,14 @@ const DEFAULT_STORE: PersistedStore = {
   adminPinHash: null,
 };
 
-function loadStore(): PersistedStore {
+function loadStore() {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     if (fs.existsSync(DB_FILE)) {
       const raw = fs.readFileSync(DB_FILE, 'utf8');
-      const parsed = JSON.parse(raw) as Partial<PersistedStore>;
+      const parsed = JSON.parse(raw);
       return {
         settings: {
           ...DEFAULT_STORE.settings,
@@ -144,9 +71,9 @@ function loadStore(): PersistedStore {
   return structuredClone(DEFAULT_STORE);
 }
 
-let store: PersistedStore = loadStore();
+let store = loadStore();
 
-function saveStore(): void {
+function saveStore() {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -159,12 +86,97 @@ function saveStore(): void {
   }
 }
 
+// Public Firestore REST read sync for storeSettings/public (non-PII global settings)
+let firebasePublicConfig = null;
+try {
+  const cfgPath = path.join(ROOT_DIR, 'firebase-applet-config.json');
+  if (fs.existsSync(cfgPath)) {
+    firebasePublicConfig = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  }
+} catch {
+  firebasePublicConfig = null;
+}
+
+let lastFirestoreSettingsSyncAt = 0;
+let firestoreSettingsSyncPromise = null;
+
+function readFirestoreField(field) {
+  if (!field || typeof field !== 'object') return undefined;
+  if ('booleanValue' in field) return Boolean(field.booleanValue);
+  if ('stringValue' in field) return String(field.stringValue);
+  if ('doubleValue' in field) return Number(field.doubleValue);
+  if ('integerValue' in field) return Number(field.integerValue);
+  return undefined;
+}
+
+async function syncStoreSettingsFromFirestorePublicRest(force = false) {
+  if (!firebasePublicConfig?.projectId || !firebasePublicConfig?.firestoreDatabaseId) return;
+  const now = Date.now();
+  if (!force && now - lastFirestoreSettingsSyncAt < 3000) return;
+  if (firestoreSettingsSyncPromise) return firestoreSettingsSyncPromise;
+
+  firestoreSettingsSyncPromise = (async () => {
+    try {
+      const { projectId, firestoreDatabaseId, apiKey } = firebasePublicConfig;
+      const keyQuery = apiKey ? `?key=${encodeURIComponent(apiKey)}` : '';
+      const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+        projectId
+      )}/databases/${encodeURIComponent(firestoreDatabaseId)}/documents/storeSettings/public${keyQuery}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+      lastFirestoreSettingsSyncAt = Date.now();
+      if (!res.ok) return;
+      const doc = await res.json();
+      const fields = doc?.fields;
+      if (!fields) return;
+
+      const remoteUpdatedAt = readFirestoreField(fields.updatedAt);
+      if (!remoteUpdatedAt) return;
+      const remoteMs = Date.parse(remoteUpdatedAt);
+      const localMs = Date.parse(store.settings.updatedAt || '1970-01-01T00:00:00.000Z');
+      if (!Number.isFinite(remoteMs) || (Number.isFinite(localMs) && remoteMs <= localMs)) {
+        return;
+      }
+
+      const isOpen = readFirestoreField(fields.isOpen);
+      const openTime = readFirestoreField(fields.openTime);
+      const closeTime = readFirestoreField(fields.closeTime);
+      const customNote = readFirestoreField(fields.customNote);
+      const deliveryFee = readFirestoreField(fields.deliveryFee);
+      const heroEyebrow = readFirestoreField(fields.heroEyebrow);
+      const heroTitle = readFirestoreField(fields.heroTitle);
+      const heroSubtitle = readFirestoreField(fields.heroSubtitle);
+
+      store.settings = {
+        ...store.settings,
+        ...(typeof isOpen === 'boolean' ? { isOpen } : {}),
+        ...(typeof openTime === 'string' && openTime ? { openTime: openTime.slice(0, 32) } : {}),
+        ...(typeof closeTime === 'string' && closeTime ? { closeTime: closeTime.slice(0, 32) } : {}),
+        ...(typeof customNote === 'string' ? { customNote: customNote.slice(0, 500) } : {}),
+        ...(typeof deliveryFee === 'number' && Number.isFinite(deliveryFee) && deliveryFee >= 0
+          ? { deliveryFee: Number(deliveryFee.toFixed(2)) }
+          : {}),
+        ...(typeof heroEyebrow === 'string' ? { heroEyebrow: heroEyebrow.slice(0, 120) } : {}),
+        ...(typeof heroTitle === 'string' && heroTitle ? { heroTitle: heroTitle.slice(0, 200) } : {}),
+        ...(typeof heroSubtitle === 'string' ? { heroSubtitle: heroSubtitle.slice(0, 300) } : {}),
+        updatedAt: remoteUpdatedAt,
+      };
+      saveStore();
+    } catch {
+      // Keep local settings if Firestore is temporarily unreachable
+    } finally {
+      firestoreSettingsSyncPromise = null;
+    }
+  })();
+
+  return firestoreSettingsSyncPromise;
+}
+
 // Optional Supabase PostgREST synchronization when environment secrets are configured
 const SUPABASE_URL = process.env.SUPABASE_URL?.replace(/\/+$/, '') || '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const hasSupabase = Boolean(SUPABASE_URL && SUPABASE_KEY);
 
-async function supabaseFetch(table: string, method: string, query = '', body?: unknown): Promise<unknown> {
+async function supabaseFetch(table, method, query = '', body = undefined) {
   if (!hasSupabase) return null;
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
@@ -176,6 +188,7 @@ async function supabaseFetch(table: string, method: string, query = '', body?: u
         Prefer: method === 'POST' ? 'resolution=merge-duplicates,return=minimal' : 'return=representation',
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return null;
     const text = await res.text();
@@ -185,12 +198,10 @@ async function supabaseFetch(table: string, method: string, query = '', body?: u
   }
 }
 
-async function syncFromSupabaseOnBoot(): Promise<void> {
+async function syncFromSupabaseOnBoot() {
   if (!hasSupabase) return;
   try {
-    const remoteSettings = (await supabaseFetch('store_settings', 'GET', '?id=eq.default&limit=1')) as
-      | Array<Record<string, unknown>>
-      | null;
+    const remoteSettings = await supabaseFetch('store_settings', 'GET', '?id=eq.default&limit=1');
     if (Array.isArray(remoteSettings) && remoteSettings[0]) {
       const s = remoteSettings[0];
       store.settings = {
@@ -207,9 +218,7 @@ async function syncFromSupabaseOnBoot(): Promise<void> {
       };
     }
 
-    const remoteOrders = (await supabaseFetch('orders', 'GET', '?order=created_at.desc')) as
-      | Array<Record<string, unknown>>
-      | null;
+    const remoteOrders = await supabaseFetch('orders', 'GET', '?order=created_at.desc');
     if (Array.isArray(remoteOrders) && remoteOrders.length > 0) {
       store.orders = remoteOrders.map((row) => ({
         id: String(row.id),
@@ -221,12 +230,12 @@ async function syncFromSupabaseOnBoot(): Promise<void> {
         paymentMethod: String(row.payment_method || ''),
         senderWalletPhone: String(row.sender_wallet_phone || ''),
         receiptImageDataUrl: String(row.receipt_image_data_url || ''),
-        items: Array.isArray(row.items) ? (row.items as OrderItemRecord[]) : [],
+        items: Array.isArray(row.items) ? row.items : [],
         subtotal: Number(row.subtotal || 0),
         deliveryFee: Number(row.delivery_fee || 0),
         grandTotal: Number(row.grand_total || 0),
         totalProfit: Number(row.total_profit || 0),
-        status: (row.status as OrderRecord['status']) || 'Pending',
+        status: row.status || 'Pending',
         rejectionReason: String(row.rejection_reason || ''),
         isPaid: Boolean(row.is_paid),
         isArchived: Boolean(row.is_archived),
@@ -247,7 +256,7 @@ async function syncFromSupabaseOnBoot(): Promise<void> {
   }
 }
 
-async function syncSettingsToSupabase(settings: StoreSettingsRecord): Promise<void> {
+async function syncSettingsToSupabase(settings) {
   if (!hasSupabase) return;
   await supabaseFetch('store_settings', 'POST', '?on_conflict=id', {
     id: 'default',
@@ -263,7 +272,7 @@ async function syncSettingsToSupabase(settings: StoreSettingsRecord): Promise<vo
   });
 }
 
-async function syncOrderToSupabase(order: OrderRecord): Promise<void> {
+async function syncOrderToSupabase(order) {
   if (!hasSupabase) return;
   await supabaseFetch('orders', 'POST', '?on_conflict=id', {
     id: order.id,
@@ -292,9 +301,9 @@ async function syncOrderToSupabase(order: OrderRecord): Promise<void> {
 }
 
 // RFC-4180 compliant CSV parser
-function parseCsvRfc4180(csvText: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
+function parseCsvRfc4180(csvText) {
+  const rows = [];
+  let row = [];
   let field = '';
   let inQuotes = false;
 
@@ -341,22 +350,18 @@ function parseCsvRfc4180(csvText: string): string[][] {
   return rows;
 }
 
-function sanitizeImageCell(raw: string): string[] {
+function sanitizeImageCell(raw) {
   const trimmed = (raw || '').trim();
   if (!trimmed) return [];
-  // Ignore spreadsheet formulas such as =IMAGE(...)
   if (trimmed.startsWith('=')) return [];
 
-  // Support comma/newline/space-separated URLs in Extra Images cells
-  const candidates = trimmed
+  return trimmed
     .split(/[\n,;\s]+/)
     .map((s) => s.trim())
     .filter((s) => /^https?:\/\//i.test(s));
-
-  return candidates;
 }
 
-function makeSlug(name: string, fallbackId: string): string {
+function makeSlug(name, fallbackId) {
   const cleaned = String(name || '')
     .normalize('NFKD')
     .replace(/[^\x00-\x7F]/g, '')
@@ -373,19 +378,13 @@ function makeSlug(name: string, fallbackId: string): string {
   return safeId || 'piece';
 }
 
-function parseNumeric(raw: string | undefined): number {
+function parseNumeric(raw) {
   if (!raw) return NaN;
-  const cleaned = raw.replace(/[^0-9.-]+/g, '');
+  const cleaned = String(raw).replace(/[^0-9.-]+/g, '');
   return cleaned ? Number(cleaned) : NaN;
 }
 
-interface CatalogCache {
-  products: ServerProduct[];
-  categories: string[];
-  fetchedAt: number;
-}
-
-let catalogCache: CatalogCache = {
+let catalogCache = {
   products: [],
   categories: [],
   fetchedAt: 0,
@@ -393,17 +392,18 @@ let catalogCache: CatalogCache = {
 
 const CACHE_TTL_MS = 15_000;
 
-async function discoverSheetTabs(): Promise<Array<{ name: string; gid: string }>> {
+async function discoverSheetTabs() {
   try {
     const res = await fetch(`https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/htmlview`, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(8000),
     });
     if (res.ok) {
       const html = await res.text();
       const matches = [...html.matchAll(/items\.push\(\{name:\s*"([^"]+)"[\s\S]*?gid:\s*"(\d+)"/g)];
       if (matches.length > 0) {
-        const seen = new Set<string>();
-        const tabs: Array<{ name: string; gid: string }> = [];
+        const seen = new Set();
+        const tabs = [];
         for (const m of matches) {
           const name = m[1].trim();
           const gid = m[2].trim();
@@ -421,23 +421,26 @@ async function discoverSheetTabs(): Promise<Array<{ name: string; gid: string }>
   return [{ name: 'Collection', gid: '0' }];
 }
 
-async function fetchCatalog(forceFresh = false): Promise<CatalogCache> {
+async function fetchCatalog(forceFresh = false) {
   const now = Date.now();
   if (!forceFresh && catalogCache.fetchedAt > 0 && now - catalogCache.fetchedAt < CACHE_TTL_MS) {
     return catalogCache;
   }
 
   const tabs = await discoverSheetTabs();
-  const products: ServerProduct[] = [];
-  const categories: string[] = [];
-  const usedSlugs = new Set<string>();
+  const products = [];
+  const categories = [];
+  const usedSlugs = new Set();
 
   for (const tab of tabs) {
     try {
       const csvUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&gid=${encodeURIComponent(
         tab.gid
       )}`;
-      const res = await fetch(csvUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      const res = await fetch(csvUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        signal: AbortSignal.timeout(8000),
+      });
       if (!res.ok) continue;
       const csvText = await res.text();
       const rows = parseCsvRfc4180(csvText);
@@ -477,7 +480,7 @@ async function fetchCatalog(forceFresh = false): Promise<CatalogCache> {
         const primaryImages = primaryImgIdx >= 0 ? sanitizeImageCell(row[primaryImgIdx] || '') : [];
         const primaryImage = primaryImages[0] || '';
 
-        const extraImagesSet = new Set<string>();
+        const extraImagesSet = new Set();
         if (extraImgIdx >= 0) {
           for (let c = extraImgIdx; c < row.length; c++) {
             if (c === prevIdx) continue;
@@ -486,7 +489,6 @@ async function fetchCatalog(forceFresh = false): Promise<CatalogCache> {
             }
           }
         }
-        // Also collect trailing image URLs after known headers, strictly excluding Prev
         for (let c = 0; c < row.length; c++) {
           if (
             c === nameIdx ||
@@ -537,6 +539,10 @@ async function fetchCatalog(forceFresh = false): Promise<CatalogCache> {
     }
   }
 
+  if (products.length === 0 && catalogCache.products.length > 0) {
+    return catalogCache;
+  }
+
   catalogCache = {
     products,
     categories,
@@ -545,7 +551,7 @@ async function fetchCatalog(forceFresh = false): Promise<CatalogCache> {
   return catalogCache;
 }
 
-function toPublicProduct(p: ServerProduct) {
+function toPublicProduct(p) {
   return {
     id: p.id,
     slug: p.slug,
@@ -559,7 +565,7 @@ function toPublicProduct(p: ServerProduct) {
   };
 }
 
-function toPublicOrder(o: OrderRecord) {
+function toPublicOrder(o) {
   return {
     id: o.id,
     orderCode: o.orderCode,
@@ -569,7 +575,7 @@ function toPublicOrder(o: OrderRecord) {
     deliveryNotes: o.deliveryNotes,
     paymentMethod: o.paymentMethod,
     senderWalletPhone: o.senderWalletPhone,
-    items: o.items.map((item) => ({
+    items: (o.items || []).map((item) => ({
       productId: item.productId,
       name: item.name,
       category: item.category,
@@ -593,13 +599,13 @@ function toPublicOrder(o: OrderRecord) {
 }
 
 // Password/PIN Hashing & Session Token helpers
-function hashPin(pin: string): string {
+function hashPin(pin) {
   const salt = crypto.randomBytes(16).toString('hex');
   const derived = crypto.scryptSync(pin, salt, 64).toString('hex');
   return `${salt}:${derived}`;
 }
 
-function verifyPinHash(pin: string, storedHash: string): boolean {
+function verifyPinHash(pin, storedHash) {
   const [salt, expectedHex] = storedHash.split(':');
   if (!salt || !expectedHex) return false;
   const derived = crypto.scryptSync(pin, salt, 64);
@@ -608,39 +614,36 @@ function verifyPinHash(pin: string, storedHash: string): boolean {
   return crypto.timingSafeEqual(derived, expected);
 }
 
-function timingSafeCompare(a: string, b: string): boolean {
+function timingSafeCompare(a, b) {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
   if (bufA.length !== bufB.length) return false;
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
-function signSessionToken(ttlSeconds = 60 * 60 * 12): string {
+function signSessionToken(ttlSeconds = 60 * 60 * 12) {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
   const payload = Buffer.from(JSON.stringify({ role: 'chef', exp })).toString('base64url');
   const sig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
   return `${payload}.${sig}`;
 }
 
-function verifySessionToken(token: string | undefined): boolean {
+function verifySessionToken(token) {
   if (!token || !token.includes('.')) return false;
   const [payload, sig] = token.split('.');
   if (!payload || !sig) return false;
   const expectedSig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
   if (!timingSafeCompare(sig, expectedSig)) return false;
   try {
-    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
-      role?: string;
-      exp?: number;
-    };
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
     return parsed.role === 'chef' && typeof parsed.exp === 'number' && parsed.exp > Math.floor(Date.now() / 1000);
   } catch {
     return false;
   }
 }
 
-function parseCookies(cookieHeader: string | undefined): Record<string, string> {
-  const result: Record<string, string> = {};
+function parseCookies(cookieHeader) {
+  const result = {};
   if (!cookieHeader) return result;
   for (const part of cookieHeader.split(';')) {
     const idx = part.indexOf('=');
@@ -654,7 +657,7 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
 
 const CHEF_COOKIE_NAME = 'dr_chef_session';
 
-function extractChefToken(req: Request): string | undefined {
+function extractChefToken(req) {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     return authHeader.slice(7).trim();
@@ -663,11 +666,11 @@ function extractChefToken(req: Request): string | undefined {
   return cookies[CHEF_COOKIE_NAME];
 }
 
-function isSameOriginMutation(req: Request): boolean {
+function isSameOriginMutation(req) {
   const customHeader = req.headers['x-requested-with'];
   if (customHeader === 'XMLHttpRequest') return true;
   const origin = req.headers.origin;
-  const host = (req.headers['x-forwarded-host'] as string) || req.headers.host;
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
   if (!origin || !host) return false;
   try {
     return new URL(origin).host === host;
@@ -676,13 +679,16 @@ function isSameOriginMutation(req: Request): boolean {
   }
 }
 
-function requireChefAuth(req: Request, res: Response, next: NextFunction): void {
+function requireChefAuth(req, res, next) {
   const token = extractChefToken(req);
   if (!verifySessionToken(token)) {
     res.status(401).json({ error: 'Unauthorized: Chef authentication required.' });
     return;
   }
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && !req.headers.authorization?.startsWith('Bearer ')) {
+  if (
+    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) &&
+    !req.headers.authorization?.startsWith('Bearer ')
+  ) {
     if (!isSameOriginMutation(req)) {
       res.status(403).json({ error: 'Forbidden: Cross-origin request verification failed.' });
       return;
@@ -691,7 +697,7 @@ function requireChefAuth(req: Request, res: Response, next: NextFunction): void 
   next();
 }
 
-function setChefSessionCookie(res: Response, token: string): void {
+function setChefSessionCookie(res, token) {
   res.setHeader(
     'Set-Cookie',
     `${CHEF_COOKIE_NAME}=${encodeURIComponent(
@@ -700,7 +706,7 @@ function setChefSessionCookie(res: Response, token: string): void {
   );
 }
 
-function clearChefSessionCookie(res: Response): void {
+function clearChefSessionCookie(res) {
   res.setHeader(
     'Set-Cookie',
     `${CHEF_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None; Partitioned`
@@ -708,14 +714,20 @@ function clearChefSessionCookie(res: Response): void {
 }
 
 async function startServer() {
-  await syncFromSupabaseOnBoot();
-
   const app = express();
   app.set('trust proxy', 1);
   app.use(express.json({ limit: '20mb' }));
 
+  app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', uptime: process.uptime() });
+  });
+
+  app.get('/favicon.ico', (_req, res) => {
+    res.status(204).end();
+  });
+
   // Public Storefront Endpoints
-  app.get('/api/products', async (req: Request, res: Response) => {
+  app.get('/api/products', async (req, res) => {
     try {
       const forceFresh = req.query.fresh === '1';
       const catalog = await fetchCatalog(forceFresh);
@@ -730,11 +742,12 @@ async function startServer() {
     }
   });
 
-  app.get('/api/settings', (_req: Request, res: Response) => {
+  app.get('/api/settings', async (_req, res) => {
+    await syncStoreSettingsFromFirestorePublicRest();
     res.json(store.settings);
   });
 
-  app.get('/api/orders', (req: Request, res: Response) => {
+  app.get('/api/orders', (req, res) => {
     const codesParam = typeof req.query.codes === 'string' ? req.query.codes : '';
     const codeParam = typeof req.query.code === 'string' ? req.query.code : '';
     const phoneParam = typeof req.query.phone === 'string' ? req.query.phone : '';
@@ -766,7 +779,8 @@ async function startServer() {
     res.json({ orders: matched });
   });
 
-  app.post('/api/orders', async (req: Request, res: Response) => {
+  app.post('/api/orders', async (req, res) => {
+    await syncStoreSettingsFromFirestorePublicRest();
     if (!store.settings.isOpen) {
       res.status(403).json({
         error: 'The atelier store is currently closed and not accepting new orders.',
@@ -774,14 +788,12 @@ async function startServer() {
       return;
     }
 
-    const body = req.body as Record<string, unknown>;
+    const body = req.body || {};
     const customerName = String(body.customerName || '').trim();
     const customerPhone = String(body.customerPhone || '').trim();
     const deliveryAddress = String(body.deliveryAddress || '').trim();
     const deliveryNotes = String(body.deliveryNotes || '').trim();
     const paymentMethod = 'Pay on Delivery';
-    const senderWalletPhone = '';
-    const receiptImageDataUrl = '';
     const rawItems = Array.isArray(body.items) ? body.items : [];
 
     if (!customerName || customerName.length > 120) {
@@ -800,18 +812,24 @@ async function startServer() {
       res.status(400).json({ error: 'Your cart is empty.' });
       return;
     }
-    const isCod = true;
 
-    const catalog = await fetchCatalog(false);
+    let catalog;
+    try {
+      catalog = await fetchCatalog(false);
+    } catch (err) {
+      console.error('Error fetching catalog during order creation:', err);
+      res.status(503).json({ error: 'Catalog temporarily unavailable. Please try again shortly.' });
+      return;
+    }
     const catalogById = new Map(catalog.products.map((p) => [p.id, p]));
     const catalogBySlug = new Map(catalog.products.map((p) => [p.slug, p]));
 
-    const orderItems: OrderItemRecord[] = [];
+    const orderItems = [];
     let subtotal = 0;
     let totalProfit = 0;
 
     for (const raw of rawItems) {
-      const entry = raw as Record<string, unknown>;
+      const entry = raw || {};
       const productId = String(entry.productId || '');
       const slug = String(entry.slug || '');
       const qty = Math.floor(Number(entry.quantity || 0));
@@ -843,7 +861,7 @@ async function startServer() {
     const grandTotal = Number((subtotal + deliveryFee).toFixed(2));
     const nowIso = new Date().toISOString();
     const orderCode = `ORD-${store.nextOrderSeq++}`;
-    const order: OrderRecord = {
+    const order = {
       id: `${orderCode}-${crypto.randomBytes(3).toString('hex')}`,
       orderCode,
       customerName,
@@ -851,8 +869,8 @@ async function startServer() {
       deliveryAddress,
       deliveryNotes,
       paymentMethod,
-      senderWalletPhone: isCod ? '' : senderWalletPhone,
-      receiptImageDataUrl: isCod ? '' : receiptImageDataUrl,
+      senderWalletPhone: '',
+      receiptImageDataUrl: '',
       items: orderItems,
       subtotal,
       deliveryFee,
@@ -875,20 +893,20 @@ async function startServer() {
   });
 
   // Chef / Admin Auth Endpoints
-  app.get('/api/chef/auth-status', (req: Request, res: Response) => {
+  app.get('/api/chef/auth-status', (req, res) => {
     const envPin = (process.env.CHEF_PIN || '').trim();
     const needsSetup = !envPin && !store.adminPinHash;
     const authenticated = verifySessionToken(extractChefToken(req));
     res.json({ authenticated, needsSetup });
   });
 
-  app.post('/api/chef/setup-pin', (req: Request, res: Response) => {
+  app.post('/api/chef/setup-pin', (req, res) => {
     const envPin = (process.env.CHEF_PIN || '').trim();
     if (envPin || store.adminPinHash) {
       res.status(409).json({ error: 'Admin PIN is already configured.' });
       return;
     }
-    const pin = String((req.body as Record<string, unknown>)?.pin || '').trim();
+    const pin = String(req.body?.pin || '').trim();
     if (pin.length < 4 || pin.length > 64) {
       res.status(400).json({ error: 'PIN must be between 4 and 64 characters.' });
       return;
@@ -901,8 +919,8 @@ async function startServer() {
     res.json({ authenticated: true, token });
   });
 
-  app.post('/api/chef/auth', (req: Request, res: Response) => {
-    const pin = String((req.body as Record<string, unknown>)?.pin || '').trim();
+  app.post('/api/chef/auth', (req, res) => {
+    const pin = String(req.body?.pin || '').trim();
     const envPin = (process.env.CHEF_PIN || '').trim();
 
     let valid = false;
@@ -925,13 +943,13 @@ async function startServer() {
     res.json({ authenticated: true, token });
   });
 
-  app.post('/api/chef/logout', (_req: Request, res: Response) => {
+  app.post('/api/chef/logout', (_req, res) => {
     clearChefSessionCookie(res);
     res.json({ authenticated: false });
   });
 
   // Protected Chef / Admin Endpoints
-  app.get('/api/chef/orders', requireChefAuth, (_req: Request, res: Response) => {
+  app.get('/api/chef/orders', requireChefAuth, (_req, res) => {
     const visible = store.orders
       .filter((o) => !o.isDeletedFromArchive)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -941,14 +959,14 @@ async function startServer() {
     });
   });
 
-  app.patch('/api/chef/orders/:id', requireChefAuth, (req: Request, res: Response) => {
+  app.patch('/api/chef/orders/:id', requireChefAuth, (req, res) => {
     const order = store.orders.find((o) => o.id === req.params.id && !o.isDeletedFromArchive);
     if (!order) {
       res.status(404).json({ error: 'Order not found.' });
       return;
     }
 
-    const body = req.body as Record<string, unknown>;
+    const body = req.body || {};
     const nextStatus = typeof body.status === 'string' ? body.status : undefined;
     const nextArchived = typeof body.isArchived === 'boolean' ? body.isArchived : undefined;
     const rejectionReason =
@@ -963,12 +981,8 @@ async function startServer() {
         res.status(400).json({ error: 'A rejection reason is required.' });
         return;
       }
-      order.status = nextStatus as OrderRecord['status'];
-      if (nextStatus === 'Rejected') {
-        order.rejectionReason = rejectionReason || '';
-      } else {
-        order.rejectionReason = '';
-      }
+      order.status = nextStatus;
+      order.rejectionReason = nextStatus === 'Rejected' ? rejectionReason || '' : '';
       if (nextStatus === 'Finished') {
         order.isPaid = true;
         order.completedAt = new Date().toISOString();
@@ -985,7 +999,7 @@ async function startServer() {
     res.json({ order });
   });
 
-  app.delete('/api/chef/orders/:id', requireChefAuth, (req: Request, res: Response) => {
+  app.delete('/api/chef/orders/:id', requireChefAuth, (req, res) => {
     const order = store.orders.find((o) => o.id === req.params.id);
     if (!order) {
       res.status(404).json({ error: 'Order not found.' });
@@ -999,8 +1013,8 @@ async function startServer() {
     res.json({ deletedId: order.id });
   });
 
-  app.post('/api/chef/orders/bulk-delete', requireChefAuth, (req: Request, res: Response) => {
-    const body = req.body as { ids?: unknown[]; allArchived?: boolean };
+  app.post('/api/chef/orders/bulk-delete', requireChefAuth, (req, res) => {
+    const body = req.body || {};
     const nowIso = new Date().toISOString();
     let count = 0;
 
@@ -1030,8 +1044,8 @@ async function startServer() {
     res.json({ deletedCount: count });
   });
 
-  app.put('/api/chef/settings', requireChefAuth, (req: Request, res: Response) => {
-    const body = req.body as Record<string, unknown>;
+  app.put('/api/chef/settings', requireChefAuth, (req, res) => {
+    const body = req.body || {};
     const isOpen = typeof body.isOpen === 'boolean' ? body.isOpen : store.settings.isOpen;
     const openTime =
       typeof body.openTime === 'string' && body.openTime.trim()
@@ -1080,13 +1094,13 @@ async function startServer() {
     res.json({ settings: store.settings });
   });
 
-  app.post('/api/chef/sales-profits/reset', requireChefAuth, (_req: Request, res: Response) => {
+  app.post('/api/chef/sales-profits/reset', requireChefAuth, (_req, res) => {
     store.analyticsBaselineAt = new Date().toISOString();
     saveStore();
     res.json({ analyticsBaselineAt: store.analyticsBaselineAt });
   });
 
-  app.get('/api/chef/products', requireChefAuth, async (req: Request, res: Response) => {
+  app.get('/api/chef/products', requireChefAuth, async (req, res) => {
     try {
       const forceFresh = req.query.fresh === '1';
       const catalog = await fetchCatalog(forceFresh);
@@ -1101,25 +1115,74 @@ async function startServer() {
     }
   });
 
-  // Vite Dev Middleware or Production Static Assets
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distDir = path.resolve(process.cwd(), 'dist');
-    app.use(express.static(distDir));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distDir, 'index.html'));
-    });
-  }
+  // Explicit Public Static Asset Mounts (strictly excludes .data/, server.js, .env, package.json)
+  app.use('/css', express.static(path.join(ROOT_DIR, 'css')));
+  app.use('/js', express.static(path.join(ROOT_DIR, 'js')));
+  app.use('/assets', express.static(path.join(ROOT_DIR, 'assets')));
 
-  app.listen(PORT, '0.0.0.0', () => {
+  app.get('/firebase-applet-config.json', (_req, res) => {
+    const cfgPath = path.join(ROOT_DIR, 'firebase-applet-config.json');
+    if (fs.existsSync(cfgPath)) {
+      res.sendFile(cfgPath);
+    } else {
+      res.status(404).json({ error: 'Firebase configuration not found.' });
+    }
+  });
+
+  // Chef / Admin Dashboard Entry (Secret Manager Route)
+  app.get(['/999chef887', '/999chef887/', '/999chef887/index.html'], (_req, res) => {
+    res.sendFile(path.join(ROOT_DIR, '999chef887', 'index.html'));
+  });
+
+  // Storefront Root & Slug Fallback Routing
+  app.get('/', (_req, res) => {
+    res.sendFile(path.join(ROOT_DIR, 'index.html'));
+  });
+
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/')) {
+      res.status(404).json({ error: 'API endpoint not found.' });
+      return;
+    }
+    if (
+      req.path.startsWith('/css/') ||
+      req.path.startsWith('/js/') ||
+      req.path.startsWith('/assets/') ||
+      req.path.startsWith('/.data') ||
+      req.path === '/server.js' ||
+      req.path === '/package.json' ||
+      req.path === '/.env'
+    ) {
+      res.status(404).send('Not found');
+      return;
+    }
+    res.sendFile(path.join(ROOT_DIR, 'index.html'));
+  });
+
+  // Global Express error handler to prevent malformed JSON or route errors from dropping sockets
+  app.use((err, req, res, _next) => {
+    console.error('Express error on', req.method, req.path, err);
+    if (res.headersSent) return;
+    if (err && err.type === 'entity.parse.failed') {
+      res.status(400).json({ error: 'Invalid JSON request payload.' });
+      return;
+    }
+    res.status(500).json({ error: 'Internal server error.' });
+  });
+
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`DR Premium Resin Server running on http://0.0.0.0:${PORT}`);
   });
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
+
+  void syncStoreSettingsFromFirestorePublicRest(true);
+  void syncFromSupabaseOnBoot();
 }
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Promise Rejection:', reason);
+});
 
 startServer().catch((err) => {
   console.error('Fatal server startup error:', err);

@@ -51,7 +51,7 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'orderCode', 'customerName', 'customerPhone', 'deliveryAddress', 'deliveryNotes',
-          'paymentMethod', 'senderWalletPhone', 'subtotal', 'deliveryFee', 'grandTotal',
+          'paymentMethod', 'senderWalletPhone', 'items', 'subtotal', 'deliveryFee', 'grandTotal',
           'totalProfit', 'status', 'rejectionReason', 'isPaid', 'isArchived',
           'isDeletedFromArchive', 'createdAt', 'updatedAt', 'completedAt'
         ])
@@ -62,6 +62,7 @@ service cloud.firestore {
         && (!('deliveryNotes' in data) || (data.deliveryNotes is string && data.deliveryNotes.size() <= 400))
         && data.paymentMethod is string && data.paymentMethod.size() >= 2 && data.paymentMethod.size() <= 64
         && (!('senderWalletPhone' in data) || (data.senderWalletPhone is string && data.senderWalletPhone.size() <= 32))
+        && (!('items' in data) || (data.items is list && data.items.size() <= 50 && (data.items.size() == 0 || data.items[0] is map)))
         && (data.subtotal is int || data.subtotal is float) && data.subtotal >= 0
         && (data.deliveryFee is int || data.deliveryFee is float) && data.deliveryFee >= 0
         && (data.grandTotal is int || data.grandTotal is float) && data.grandTotal >= 0
@@ -74,6 +75,13 @@ service cloud.firestore {
         && data.createdAt is string && data.createdAt.size() >= 10 && data.createdAt.size() <= 64
         && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64))
         && (!('completedAt' in data) || (data.completedAt is string && data.completedAt.size() <= 64));
+    }
+
+    function isValidChefMeta(data) {
+      return data.keys().hasAll(['updatedAt'])
+        && data.keys().hasOnly(['analyticsBaselineAt', 'updatedAt'])
+        && (!('analyticsBaselineAt' in data) || (data.analyticsBaselineAt is string && data.analyticsBaselineAt.size() <= 64))
+        && data.updatedAt is string && data.updatedAt.size() >= 10 && data.updatedAt.size() <= 64;
     }
 
     match /test/{docId} {
@@ -99,6 +107,15 @@ service cloud.firestore {
         && incoming().createdAt == existing().createdAt
         && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason', 'isPaid', 'isArchived', 'isDeletedFromArchive', 'updatedAt', 'completedAt']);
       allow delete: if isAdmin() && isValidId(orderId);
+    }
+
+    match /chefMeta/{metaId} {
+      allow get: if isAdmin() && isValidId(metaId);
+      allow list: if false;
+      allow create: if isAdmin() && isValidId(metaId) && isValidChefMeta(incoming());
+      allow update: if isAdmin() && isValidId(metaId) && isValidChefMeta(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['analyticsBaselineAt', 'updatedAt']);
+      allow delete: if false;
     }
 
     match /admins/{adminUid} {
