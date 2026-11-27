@@ -11,23 +11,23 @@ const PORT = Number(process.env.PORT || 3000);
 const SPREADSHEET_ID =
   process.env.GOOGLE_SPREADSHEET_ID || '1dr4wiPp1-1SgAj4v0j_8-8MD7OQhqrgKt8yOTHxR_v0';
 const SUPPORT_PHONE = '0 12 74211223';
-const CURRENCY = 'USD';
+const CURRENCY = 'EUR';
 const BRAND_NAME = 'DR - Premium Resin Products';
-const DEFAULT_USD_TO_EUR_RATE = 0.92;
-let exchangeRateCache = { rate: DEFAULT_USD_TO_EUR_RATE, expiresAt: 0 };
+const DEFAULT_EUR_TO_USD_RATE = 1.09;
+let exchangeRateCache = { rate: DEFAULT_EUR_TO_USD_RATE, expiresAt: 0 };
 
-async function getUsdToEurRate() {
+async function getEurToUsdRate() {
   if (Date.now() < exchangeRateCache.expiresAt) return exchangeRateCache.rate;
   try {
-    const response = await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR', { signal: AbortSignal.timeout(5000) });
+    const response = await fetch('https://api.frankfurter.app/latest?from=EUR&to=USD', { signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error(`Exchange-rate service returned ${response.status}`);
     const data = await response.json();
-    const rate = Number(data?.rates?.EUR);
-    if (!Number.isFinite(rate) || rate <= 0) throw new Error('Invalid USD/EUR exchange rate');
+    const rate = Number(data?.rates?.USD);
+    if (!Number.isFinite(rate) || rate <= 0) throw new Error('Invalid EUR/USD exchange rate');
     exchangeRateCache = { rate, expiresAt: Date.now() + 6 * 60 * 60 * 1000 };
   } catch (err) {
-    console.warn('Live EUR exchange rate unavailable; using fallback rate:', err.message);
-    exchangeRateCache = { rate: DEFAULT_USD_TO_EUR_RATE, expiresAt: Date.now() + 15 * 60 * 1000 };
+    console.warn('Live EUR exchange rate unavailable; using EUR/USD fallback rate:', err.message);
+    exchangeRateCache = { rate: DEFAULT_EUR_TO_USD_RATE, expiresAt: Date.now() + 15 * 60 * 1000 };
   }
   return exchangeRateCache.rate;
 }
@@ -941,8 +941,8 @@ async function startServer() {
 
   app.get('/api/settings', async (_req, res) => {
     await syncStoreSettingsFromFirestorePublicRest();
-    const usdToEurRate = await getUsdToEurRate();
-    res.json({ ...store.settings, usdToEurRate });
+    const eurToUsdRate = await getEurToUsdRate();
+    res.json({ ...store.settings, eurToUsdRate });
   });
 
   app.get('/api/orders', (req, res) => {
