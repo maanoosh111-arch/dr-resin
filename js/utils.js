@@ -1,10 +1,10 @@
 import { ORDERS_CHANNEL_NAME } from './config.js';
 
-export function formatStorePrice(amount, currency = 'USD', usdToEurRate = 1) {
+export function formatStorePrice(amount, currency = 'EUR', eurToUsdRate = 1) {
   const baseAmount = Number.isFinite(Number(amount)) ? Number(amount) : 0;
-  const normalizedCurrency = currency === 'EUR' ? 'EUR' : 'USD';
-  const rate = Number.isFinite(Number(usdToEurRate)) && Number(usdToEurRate) > 0 ? Number(usdToEurRate) : 0.92;
-  const convertedAmount = normalizedCurrency === 'EUR' ? baseAmount * rate : baseAmount;
+  const normalizedCurrency = currency === 'USD' ? 'USD' : 'EUR';
+  const rate = Number.isFinite(Number(eurToUsdRate)) && Number(eurToUsdRate) > 0 ? Number(eurToUsdRate) : 1.09;
+  const convertedAmount = normalizedCurrency === 'USD' ? baseAmount * rate : baseAmount;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: normalizedCurrency,
