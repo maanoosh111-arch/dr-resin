@@ -3,7 +3,6 @@ import {
   DEFAULT_SETTINGS,
   ORDERS_CHANNEL_NAME,
   OrderStatus,
-  SUPPORT_PHONE_DISPLAY,
 } from './config.js';
 import {
   bulkDeleteChefOrders,
@@ -21,14 +20,9 @@ import {
 import {
   fetchChefMetaFromFirestore,
   fetchOrdersFromFirestore,
-  fetchStoreSettingsFromFirestore,
-  getCurrentFirebaseUserEmail,
   isFirebaseVerifiedUser,
-  onFirebaseAuthChanged,
-  signInChefWithGoogle,
   syncAnalyticsBaselineToFirestore,
   syncOrderToFirestore,
-  syncSettingsToFirestore,
 } from './firebase.js';
 import { createIcon } from './icons.js';
 import {
@@ -69,6 +63,7 @@ const state = {
   formHeroEyebrow: DEFAULT_SETTINGS.heroEyebrow,
   formHeroTitle: DEFAULT_SETTINGS.heroTitle,
   formHeroSubtitle: DEFAULT_SETTINGS.heroSubtitle,
+  formSupportPhone: DEFAULT_SETTINGS.supportPhone,
   settingsDirty: false,
   settingsSaving: false,
   settingsSavedToast: '',
@@ -92,8 +87,6 @@ const state = {
   period: 'today', // 'today' | '7d' | '30d'
   analyticsSubTab: 'orders', // 'orders' | 'products'
 
-  // Optional Firebase Google Sync
-  firebaseUserEmail: null,
 };
 
 let pollIntervalId = null;
@@ -235,7 +228,7 @@ function renderThermalReceipt(order) {
     [
       el('div', { style: { fontSize: '15px', fontWeight: 'bold', letterSpacing: '1px' } }, 'DR - PREMIUM RESIN'),
       el('div', { style: { fontSize: '10px' } }, 'Handcrafted Wood & Epoxy Atelier'),
-      el('div', { style: { fontSize: '10px' } }, `Support: ${SUPPORT_PHONE_DISPLAY}`),
+      el('div', { style: { fontSize: '10px' } }, `Support: ${(state.settings?.supportPhone || DEFAULT_SETTINGS.supportPhone)}`),
     ]
   );
 
@@ -342,7 +335,7 @@ function renderThermalReceipt(order) {
     },
     [
       el('div', null, 'Thank you for choosing DR Resin'),
-      el('div', null, `Customer Care: ${SUPPORT_PHONE_DISPLAY}`),
+      el('div', null, `Customer Care: ${(state.settings?.supportPhone || DEFAULT_SETTINGS.supportPhone)}`),
     ]
   );
 
@@ -445,19 +438,8 @@ async function refreshOrders() {
 
 async function refreshSettings() {
   try {
-    const [localRes, remoteRes] = await Promise.allSettled([
-      fetchStoreSettings(),
-      fetchStoreSettingsFromFirestore(),
-    ]);
-    const localSettings = localRes.status === 'fulfilled' ? localRes.value : null;
-    const remoteSettings = remoteRes.status === 'fulfilled' ? remoteRes.value : null;
-
-    let chosen = localSettings || remoteSettings;
-    if (localSettings && remoteSettings) {
-      const localMs = Date.parse(localSettings.updatedAt || '1970-01-01T00:00:00.000Z');
-      const remoteMs = Date.parse(remoteSettings.updatedAt || '1970-01-01T00:00:00.000Z');
-      chosen = Number.isFinite(remoteMs) && remoteMs >= localMs ? remoteSettings : localSettings;
-    }
+    // Server-side Firebase Admin reads the shared settings document.
+    const chosen = await fetchStoreSettings();
     if (!chosen) return;
 
     state.settings = chosen;
@@ -470,6 +452,7 @@ async function refreshSettings() {
       state.formHeroEyebrow = chosen.heroEyebrow ?? DEFAULT_SETTINGS.heroEyebrow;
       state.formHeroTitle = chosen.heroTitle ?? DEFAULT_SETTINGS.heroTitle;
       state.formHeroSubtitle = chosen.heroSubtitle ?? DEFAULT_SETTINGS.heroSubtitle;
+      state.formSupportPhone = chosen.supportPhone ?? DEFAULT_SETTINGS.supportPhone;
     }
     updateChromeOnly();
   } catch {
@@ -654,6 +637,7 @@ async function handleSaveSettings(e) {
         heroEyebrow: state.formHeroEyebrow,
         heroTitle: state.formHeroTitle,
         heroSubtitle: state.formHeroSubtitle,
+        supportPhone: state.formSupportPhone,
       },
       state.bearerToken
     );
@@ -663,19 +647,10 @@ async function handleSaveSettings(e) {
       state.settings = saved;
       state.settingsDirty = false;
 
-      if (await isFirebaseVerifiedUser()) {
-        try {
-          await syncSettingsToFirestore(saved);
-          state.settingsSavedToast =
-            'Saved and published globally to Firestore — live for all visitors worldwide.';
-        } catch {
-          state.settingsSavedToast =
-            'Saved on this server, but global Firestore sync failed. Check Google Cloud Sync permission.';
-        }
-      } else {
-        state.settingsSavedToast =
-          'Saved on this server only. Connect Google Cloud Sync to publish globally worldwide.';
-      }
+      state.formSupportPhone = saved.supportPhone || DEFAULT_SETTINGS.supportPhone;
+      state.settingsSavedToast = res.data.globalSync
+        ? 'Saved and published globally. Changes will appear for storefront visitors worldwide.'
+        : 'Saved on this server, but global Firestore sync is unavailable. Check the server Firebase configuration.';
 
       if (savedToastTimerId) window.clearTimeout(savedToastTimerId);
       savedToastTimerId = window.setTimeout(() => {
@@ -699,35 +674,6 @@ async function handleResetAnalyticsBaseline() {
     }
     showToast('Analytics period baseline reset.');
     if (state.activeTab === 'analytics') renderMainSection();
-  }
-}
-
-async function handleGoogleCloudConnect() {
-  try {
-    const cred = await signInChefWithGoogle();
-    state.firebaseUserEmail = cred.user?.emailVerified ? cred.user.email || null : null;
-
-    const remoteSettings = await fetchStoreSettingsFromFirestore().catch(() => null);
-    if (state.settings) {
-      const localMs = Date.parse(state.settings.updatedAt || '1970-01-01T00:00:00.000Z');
-      const remoteMs = Date.parse(remoteSettings?.updatedAt || '1970-01-01T00:00:00.000Z');
-      if (!remoteSettings || (Number.isFinite(localMs) && localMs > remoteMs)) {
-        await syncSettingsToFirestore(state.settings);
-      }
-    }
-
-    for (const o of state.orders) {
-      void syncOrderToFirestore(o).catch(() => undefined);
-    }
-    if (state.analyticsBaselineAt) {
-      void syncAnalyticsBaselineToFirestore(state.analyticsBaselineAt).catch(() => undefined);
-    }
-    updateChromeOnly();
-    void refreshSettings();
-    void refreshOrders();
-    showToast(`Global Cloud Sync active as ${state.firebaseUserEmail || 'Google Account'}`);
-  } catch {
-    showToast('Google sign-in was cancelled, blocked, or unauthorized for admin sync.');
   }
 }
 
@@ -1058,31 +1004,6 @@ function buildTopbarNode() {
           'button',
           {
             type: 'button',
-            className: 'chef-pill-btn',
-            style: state.firebaseUserEmail
-              ? { borderColor: 'var(--emerald-border)', color: '#a7f3d0' }
-              : { borderColor: 'var(--amber-border)', color: '#fde68a' },
-            title: state.firebaseUserEmail
-              ? `Global Cloud Sync active (${state.firebaseUserEmail})`
-              : 'Sign in with Google to enable global Firestore sync',
-            onClick: () => void handleGoogleCloudConnect(),
-          },
-          [
-            createIcon(
-              'cloud',
-              state.firebaseUserEmail ? 'icon-sm text-emerald-accent' : 'icon-sm text-amber-accent'
-            ),
-            el(
-              'span',
-              { className: 'hide-xs' },
-              state.firebaseUserEmail ? 'Global Sync Active' : 'Connect Global Sync'
-            ),
-          ]
-        ),
-        el(
-          'button',
-          {
-            type: 'button',
             className: `chef-pill-btn ${state.muted ? 'chef-sound-muted' : 'chef-sound-on'}`,
             onClick: () => void toggleMute(),
           },
@@ -1127,38 +1048,6 @@ function buildTopbarNode() {
       )
     ),
 
-    !state.firebaseUserEmail
-      ? el('div', { className: 'chef-cloud-banner' }, [
-          el(
-            'div',
-            {
-              className: 'alert-amber',
-              style: {
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.5rem 0.875rem',
-              },
-            },
-            [
-              el(
-                'span',
-                { style: { fontSize: '0.75rem' } },
-                'Connect Global Cloud Sync with Google so changes apply worldwide for every visitor across all servers.'
-              ),
-              el(
-                'button',
-                {
-                  type: 'button',
-                  className: 'chef-pill-btn',
-                  style: { borderColor: 'var(--amber-border)', color: '#fde68a' },
-                  onClick: () => void handleGoogleCloudConnect(),
-                },
-                [createIcon('cloud', 'icon-sm text-amber-accent'), el('span', null, 'Connect Sync')]
-              ),
-            ]
-          ),
-        ])
-      : null,
   ]);
 }
 
@@ -1895,7 +1784,7 @@ function buildSettingsTab() {
           el(
             'p',
             { style: { fontSize: '0.8125rem', color: 'var(--ink-secondary)', marginTop: '0.25rem' } },
-            'Changes propagate live to storefront status, cart, checkout invoice, and footer.'
+            'Changes are saved securely on the server and published through Firestore for every visitor.'
           ),
         ]),
         toggleBtn,
@@ -1947,6 +1836,23 @@ function buildSettingsTab() {
             },
           }),
         ]),
+      ]),
+
+      el('div', null, [
+        el('label', { for: 'setting-support-phone', className: 'field-label' }, 'Customer Support Phone'),
+        el('input', {
+          id: 'setting-support-phone',
+          type: 'tel',
+          maxlength: '32',
+          value: state.formSupportPhone,
+          placeholder: 'e.g. 0 12 74211223',
+          className: 'dark-input',
+          onInput: (e) => {
+            state.formSupportPhone = e.target.value;
+            state.settingsDirty = true;
+          },
+        }),
+        el('p', { style: { fontSize: '0.75rem', color: 'var(--ink-muted)', marginTop: '0.35rem' } }, 'Used for storefront contact details, copy buttons, and WhatsApp links.'),
       ]),
 
       el('div', null, [
@@ -2503,30 +2409,14 @@ async function initChefDashboard() {
   );
 
   try {
-    const [status, email] = await Promise.all([
-      getChefAuthStatus(),
-      getCurrentFirebaseUserEmail(),
-    ]);
+    const status = await getChefAuthStatus();
     state.authenticated = Boolean(status.authenticated);
     state.needsSetup = Boolean(status.needsSetup);
-    state.firebaseUserEmail = email;
   } catch {
     // Ignore transient errors
   } finally {
     state.authChecking = false;
   }
-
-  void onFirebaseAuthChanged((email) => {
-    const changed = state.firebaseUserEmail !== email;
-    state.firebaseUserEmail = email;
-    if (changed && state.authenticated) {
-      updateChromeOnly();
-      if (email) {
-        void refreshSettings();
-        void refreshOrders();
-      }
-    }
-  });
 
   render();
   if (state.authenticated) {
