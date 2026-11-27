@@ -29,11 +29,11 @@ import {
 } from './utils.js';
 
 function formatChefPrice(amount) {
-  return formatStorePrice(amount, state.settings?.currency || state.formCurrency || 'USD', state.settings?.usdToEurRate || 0.92);
+  return formatStorePrice(amount, state.settings?.currency || state.formCurrency || 'EUR', state.settings?.eurToUsdRate || 1.09);
 }
 
 function getChefCurrencyCode() {
-  return state.settings?.currency || state.formCurrency || 'USD';
+  return state.settings?.currency || state.formCurrency || 'EUR';
 }
 
 const state = {
@@ -402,7 +402,7 @@ async function refreshSettings() {
       state.formHeroTitle = chosen.heroTitle ?? DEFAULT_SETTINGS.heroTitle;
       state.formHeroSubtitle = chosen.heroSubtitle ?? DEFAULT_SETTINGS.heroSubtitle;
       state.formSupportPhone = chosen.supportPhone ?? DEFAULT_SETTINGS.supportPhone;
-      state.formCurrency = chosen.currency === 'EUR' ? 'EUR' : 'USD';
+      state.formCurrency = chosen.currency === 'USD' ? 'USD' : 'EUR';
     }
     updateChromeOnly();
   } catch {
@@ -543,7 +543,7 @@ async function handleSaveSettings(e) {
       state.settingsDirty = false;
 
       state.formSupportPhone = saved.supportPhone || DEFAULT_SETTINGS.supportPhone;
-      state.formCurrency = saved.currency === 'EUR' ? 'EUR' : 'USD';
+      state.formCurrency = saved.currency === 'USD' ? 'USD' : 'EUR';
       state.settingsSavedToast = res.data.globalSync
         ? 'Saved and published globally. Changes will appear for storefront visitors worldwide.'
         : 'Saved on this server, but global Firestore sync is unavailable. Check the server Firebase configuration.';
@@ -1702,7 +1702,7 @@ function buildSettingsTab() {
             el('option', { value: 'USD' }, 'USD — US Dollar'),
             el('option', { value: 'EUR' }, 'EUR — Euro'),
           ]),
-          el('p', { style: { fontSize: '0.75rem', color: 'var(--ink-muted)', marginTop: '0.35rem' } }, 'Customer-facing prices update using the latest available USD/EUR exchange rate.'),
+          el('p', { style: { fontSize: '0.75rem', color: 'var(--ink-muted)', marginTop: '0.35rem' } }, 'Google Sheets product prices are maintained in EUR. Choose EUR or USD for customer-facing display; USD uses the latest EUR/USD exchange rate.'),
         ]),
         el('div', null, [
           el('label', { for: 'setting-open-time', className: 'field-label' }, 'Opening Time'),
@@ -1731,7 +1731,7 @@ function buildSettingsTab() {
           }),
         ]),
         el('div', null, [
-          el('label', { for: 'setting-delivery-fee', className: 'field-label' }, 'Home Delivery Fee (base USD)'),
+          el('label', { for: 'setting-delivery-fee', className: 'field-label' }, 'Home Delivery Fee (base EUR)'),
           el('input', {
             id: 'setting-delivery-fee',
             type: 'number',
