@@ -46,6 +46,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   heroSubtitle: 'DR - Premium Resin Products',
   supportPhone: SUPPORT_PHONE_DISPLAY,
   currency: 'USD',
+  usdToEurRate: 0.92,
   brandName: 'DR - Premium Resin Products',
   updatedAt: '1970-01-01T00:00:00.000Z',
 });
