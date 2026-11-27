@@ -68,6 +68,7 @@ const state = {
   formCurrency: DEFAULT_SETTINGS.currency,
   settingsDirty: false,
   settingsSaving: false,
+  settingsRevision: 0,
   settingsSavedToast: '',
 
   // Audio & toast
@@ -388,10 +389,11 @@ async function refreshOrders() {
 async function refreshSettings() {
   // Never let the 4-second background poll overwrite an edit or an in-flight save.
   if (state.settingsSaving || state.settingsDirty) return;
+  const revisionAtRequestStart = state.settingsRevision;
   try {
     // Server-side Firebase Admin reads the shared settings document.
     const chosen = await fetchStoreSettings();
-    if (!chosen || state.settingsSaving || state.settingsDirty) return;
+    if (!chosen || state.settingsSaving || state.settingsDirty || revisionAtRequestStart !== state.settingsRevision) return;
 
     state.settings = chosen;
     if (!state.settingsDirty && !state.settingsSaving) {
@@ -520,6 +522,7 @@ async function executeDeleteOrder() {
 
 async function handleSaveSettings(e) {
   e.preventDefault();
+  state.settingsRevision += 1;
   state.settingsSaving = true;
   renderMainSection();
   try {
