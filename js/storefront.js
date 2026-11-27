@@ -25,10 +25,18 @@ import {
   clearNode,
   copyToClipboard,
   el,
-  formatPriceUSD,
+  formatStorePrice,
   formatWhatsAppUrl,
   sanitizeImageUrl,
 } from './utils.js';
+
+function formatStoreMoney(amount) {
+  return formatStorePrice(amount, state.settings?.currency || getStoreCurrencyCode(), state.settings?.usdToEurRate || 0.92);
+}
+
+function getStoreCurrencyCode() {
+  return state.settings?.currency || getStoreCurrencyCode();
+}
 
 function getSupportPhoneDisplay() {
   return String(state.settings?.supportPhone || DEFAULT_SETTINGS.supportPhone || '0 12 74211223').trim();
@@ -277,7 +285,7 @@ function renderSettingsUI() {
     dom.footerWhatsappLink.href = formatWhatsAppUrl(getSupportWhatsAppNumber(), 'Hello DR Customer Service');
   }
   if (dom.footerDeliveryChip) {
-    dom.footerDeliveryChip.textContent = `Delivery: ${formatPriceUSD(s.deliveryFee)} USD`;
+    dom.footerDeliveryChip.textContent = `Delivery: ${formatStoreMoney(s.deliveryFee)} ${getStoreCurrencyCode()}`;
   }
 }
 
@@ -499,8 +507,8 @@ function createProductCard(product) {
           el('div', { className: 'product-card-price-row' }, [
             el('span', { className: 'product-price-label' }, 'Atelier Price'),
             el('div', { className: 'product-price-value tabular-nums' }, [
-              `${formatPriceUSD(product.price)} `,
-              el('span', { className: 'product-price-currency' }, 'USD'),
+              `${formatStoreMoney(product.price)} `,
+              el('span', { className: 'product-price-currency' }, getStoreCurrencyCode()),
             ]),
           ]),
           el('div', { className: 'product-actions-row' }, [addBtn, buyBtn]),
@@ -739,8 +747,8 @@ function renderProductDetailModal() {
   const updateLineTotal = () => {
     clearNode(lineTotalEl);
     lineTotalEl.append(
-      `${formatPriceUSD(product.price * state.detailQty)} `,
-      el('span', { style: { fontSize: '0.75rem', fontWeight: '500', color: 'var(--ink-secondary)' } }, 'USD')
+      `${formatStoreMoney(product.price * state.detailQty)} `,
+      el('span', { style: { fontSize: '0.75rem', fontWeight: '500', color: 'var(--ink-secondary)' } }, getStoreCurrencyCode())
     );
   };
   updateLineTotal();
@@ -907,11 +915,11 @@ function renderProductDetailModal() {
       ]),
       el('h2', { className: 'detail-title' }, product.name),
       el('div', { className: 'detail-price-row' }, [
-        el('span', { className: 'tabular-nums detail-price' }, formatPriceUSD(product.price)),
+        el('span', { className: 'tabular-nums detail-price' }, formatStoreMoney(product.price)),
         el(
           'span',
           { style: { fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-muted)' } },
-          'USD'
+          getStoreCurrencyCode()
         ),
       ]),
       el(
@@ -1259,8 +1267,8 @@ function renderCartDrawer() {
                     ),
                   ]),
                   el('div', { className: 'tabular-nums', style: { fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' } }, [
-                    `${formatPriceUSD(item.unitPrice * item.quantity)} `,
-                    el('span', { style: { fontSize: '0.625rem', fontWeight: '500', color: 'var(--ink-muted)' } }, 'USD'),
+                    `${formatStoreMoney(item.unitPrice * item.quantity)} `,
+                    el('span', { style: { fontSize: '0.625rem', fontWeight: '500', color: 'var(--ink-muted)' } }, getStoreCurrencyCode()),
                   ]),
                 ]
               ),
@@ -1274,15 +1282,15 @@ function renderCartDrawer() {
         el('div', { className: 'invoice-box' }, [
           el('div', { className: 'invoice-row' }, [
             el('span', null, 'Subtotal'),
-            el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatPriceUSD(subtotal)} USD`),
+            el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatStoreMoney(subtotal)} ${getStoreCurrencyCode()}`),
           ]),
           el('div', { className: 'invoice-row' }, [
             el('span', null, 'Home Delivery Fee'),
-            el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatPriceUSD(deliveryFee)} USD`),
+            el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatStoreMoney(deliveryFee)} ${getStoreCurrencyCode()}`),
           ]),
           el('div', { className: 'invoice-total-row' }, [
             el('span', null, 'Estimated Total'),
-            el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)' } }, `${formatPriceUSD(grandTotal)} USD`),
+            el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)' } }, `${formatStoreMoney(grandTotal)} ${getStoreCurrencyCode()}`),
           ]),
         ])
       );
@@ -1435,9 +1443,9 @@ function renderCartDrawer() {
               el('div', { style: { fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' } }, 'Pay on Delivery'),
               el('div', { style: { fontSize: '0.75rem', color: 'var(--ink-secondary)' } }, [
                 'Pay ',
-                el('span', { className: 'tabular-nums', style: { fontWeight: '600', color: '#ffffff' } }, `${formatPriceUSD(grandTotal)} USD`),
+                el('span', { className: 'tabular-nums', style: { fontWeight: '600', color: '#ffffff' } }, `${formatStoreMoney(grandTotal)} ${getStoreCurrencyCode()}`),
                 ' upon courier delivery (includes ',
-                el('span', { className: 'tabular-nums' }, `${formatPriceUSD(deliveryFee)} USD`),
+                el('span', { className: 'tabular-nums' }, `${formatStoreMoney(deliveryFee)} ${getStoreCurrencyCode()}`),
                 ' shipping)',
               ]),
             ]),
@@ -1451,15 +1459,15 @@ function renderCartDrawer() {
       el('div', { className: 'invoice-box' }, [
         el('div', { className: 'invoice-row' }, [
           el('span', null, 'Items Subtotal'),
-          el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatPriceUSD(subtotal)} USD`),
+          el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatStoreMoney(subtotal)} ${getStoreCurrencyCode()}`),
         ]),
         el('div', { className: 'invoice-row' }, [
           el('span', null, 'Home Delivery Fee'),
-          el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatPriceUSD(deliveryFee)} USD`),
+          el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatStoreMoney(deliveryFee)} ${getStoreCurrencyCode()}`),
         ]),
         el('div', { className: 'invoice-total-row' }, [
           el('span', null, 'Grand Total'),
-          el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)' } }, `${formatPriceUSD(grandTotal)} USD`),
+          el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)' } }, `${formatStoreMoney(grandTotal)} ${getStoreCurrencyCode()}`),
         ]),
       ])
     );
@@ -1531,11 +1539,11 @@ function renderCartDrawer() {
           ]),
           el('div', { className: 'invoice-row' }, [
             el('span', null, 'Delivery Fee'),
-            el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatPriceUSD(order.deliveryFee)} USD`),
+            el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatStoreMoney(order.deliveryFee)} ${getStoreCurrencyCode()}`),
           ]),
           el('div', { className: 'invoice-total-row' }, [
             el('span', null, 'Grand Total'),
-            el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)' } }, `${formatPriceUSD(order.grandTotal)} USD`),
+            el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)' } }, `${formatStoreMoney(order.grandTotal)} ${getStoreCurrencyCode()}`),
           ]),
         ]),
         el('div', { className: 'gallery-surface footer-service-card', style: { padding: '1rem' } }, [
@@ -1688,7 +1696,7 @@ function renderCartDrawer() {
             null,
             state.checkoutSubmitting
               ? 'Submitting Order...'
-              : `Confirm Order · ${formatPriceUSD(grandTotal)} USD`
+              : `Confirm Order · ${formatStoreMoney(grandTotal)} ${getStoreCurrencyCode()}`
           )
         ),
       ])
@@ -1838,7 +1846,7 @@ function renderMyOrdersList() {
             el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)', fontWeight: '600' } }, `${item.quantity}×`),
             ` ${item.name}`,
           ]),
-          el('div', { className: 'tabular-nums', style: { color: '#ffffff', fontWeight: '500', flexShrink: '0' } }, `${formatPriceUSD(item.lineTotal)} USD`),
+          el('div', { className: 'tabular-nums', style: { color: '#ffffff', fontWeight: '500', flexShrink: '0' } }, `${formatStoreMoney(item.lineTotal)} ${getStoreCurrencyCode()}`),
         ])
       );
     }
@@ -1879,11 +1887,11 @@ function renderMyOrdersList() {
         [
           el('div', { style: { color: 'var(--ink-secondary)' } }, [
             'Delivery Fee: ',
-            el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatPriceUSD(order.deliveryFee)} USD`),
+            el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, `${formatStoreMoney(order.deliveryFee)} ${getStoreCurrencyCode()}`),
           ]),
           el('div', { style: { fontSize: '0.875rem', fontWeight: '600', color: '#ffffff' } }, [
             'Grand Total: ',
-            el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)' } }, `${formatPriceUSD(order.grandTotal)} USD`),
+            el('span', { className: 'tabular-nums', style: { color: 'var(--accent-soft)' } }, `${formatStoreMoney(order.grandTotal)} ${getStoreCurrencyCode()}`),
           ]),
         ]
       )
