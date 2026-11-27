@@ -22,11 +22,19 @@ import {
   broadcastOrdersUpdate,
   clearNode,
   el,
-  formatPriceUSD,
+  formatStorePrice,
   playNewOrderChime,
   sanitizeImageUrl,
   unlockAudioContext,
 } from './utils.js';
+
+function formatChefPrice(amount) {
+  return formatStorePrice(amount, state.settings?.currency || state.formCurrency || 'USD', state.settings?.usdToEurRate || 0.92);
+}
+
+function getChefCurrencyCode() {
+  return state.settings?.currency || state.formCurrency || 'USD';
+}
 
 const state = {
   authChecking: true,
@@ -57,6 +65,7 @@ const state = {
   formHeroTitle: DEFAULT_SETTINGS.heroTitle,
   formHeroSubtitle: DEFAULT_SETTINGS.heroSubtitle,
   formSupportPhone: DEFAULT_SETTINGS.supportPhone,
+  formCurrency: DEFAULT_SETTINGS.currency,
   settingsDirty: false,
   settingsSaving: false,
   settingsSavedToast: '',
@@ -280,7 +289,7 @@ function renderThermalReceipt(order) {
           el('tr', null, [
             el('td', { style: { padding: '2px 0' } }, item.name),
             el('td', { style: { textAlign: 'center', padding: '2px 0' } }, String(item.quantity)),
-            el('td', { style: { textAlign: 'right', padding: '2px 0' } }, formatPriceUSD(item.lineTotal)),
+            el('td', { style: { textAlign: 'right', padding: '2px 0' } }, formatChefPrice(item.lineTotal)),
           ])
         )
       ),
@@ -290,11 +299,11 @@ function renderThermalReceipt(order) {
   const totals = el('div', { style: { fontSize: '11px', marginBottom: '8px' } }, [
     el('div', { style: { display: 'flex', justifyContent: 'space-between' } }, [
       el('span', null, 'Subtotal:'),
-      el('span', null, `${formatPriceUSD(order.subtotal)} USD`),
+      el('span', null, `${formatChefPrice(order.subtotal)} ${getChefCurrencyCode()}`),
     ]),
     el('div', { style: { display: 'flex', justifyContent: 'space-between' } }, [
       el('span', null, 'Delivery Fee:'),
-      el('span', null, `${formatPriceUSD(order.deliveryFee)} USD`),
+      el('span', null, `${formatChefPrice(order.deliveryFee)} ${getChefCurrencyCode()}`),
     ]),
     el(
       'div',
@@ -311,7 +320,7 @@ function renderThermalReceipt(order) {
       },
       [
         el('span', null, 'GRAND TOTAL:'),
-        el('span', null, `${formatPriceUSD(order.grandTotal)} USD`),
+        el('span', null, `${formatChefPrice(order.grandTotal)} ${getChefCurrencyCode()}`),
       ]
     ),
   ]);
@@ -393,6 +402,7 @@ async function refreshSettings() {
       state.formHeroTitle = chosen.heroTitle ?? DEFAULT_SETTINGS.heroTitle;
       state.formHeroSubtitle = chosen.heroSubtitle ?? DEFAULT_SETTINGS.heroSubtitle;
       state.formSupportPhone = chosen.supportPhone ?? DEFAULT_SETTINGS.supportPhone;
+      state.formCurrency = chosen.currency === 'EUR' ? 'EUR' : 'USD';
     }
     updateChromeOnly();
   } catch {
@@ -522,6 +532,7 @@ async function handleSaveSettings(e) {
         heroTitle: state.formHeroTitle,
         heroSubtitle: state.formHeroSubtitle,
         supportPhone: state.formSupportPhone,
+        currency: state.formCurrency,
       },
       state.bearerToken
     );
@@ -532,6 +543,7 @@ async function handleSaveSettings(e) {
       state.settingsDirty = false;
 
       state.formSupportPhone = saved.supportPhone || DEFAULT_SETTINGS.supportPhone;
+      state.formCurrency = saved.currency === 'EUR' ? 'EUR' : 'USD';
       state.settingsSavedToast = res.data.globalSync
         ? 'Saved and published globally. Changes will appear for storefront visitors worldwide.'
         : 'Saved on this server, but global Firestore sync is unavailable. Check the server Firebase configuration.';
@@ -1078,7 +1090,7 @@ function buildActiveOrdersTab() {
                 el(
                   'span',
                   { className: 'tabular-nums', style: { color: '#ffffff', fontWeight: '500' } },
-                  `${formatPriceUSD(item.lineTotal)} USD`
+                  `${formatChefPrice(item.lineTotal)} ${getChefCurrencyCode()}`
                 ),
               ])
             )
@@ -1128,7 +1140,7 @@ function buildActiveOrdersTab() {
           el('div', { className: 'chef-order-footer' }, [
             el('div', { style: { fontSize: '0.75rem', color: 'var(--ink-secondary)' } }, [
               'Delivery: ',
-              el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, formatPriceUSD(order.deliveryFee)),
+              el('span', { className: 'tabular-nums', style: { color: '#ffffff' } }, formatChefPrice(order.deliveryFee)),
               ' · Total: ',
               el(
                 'span',
@@ -1136,7 +1148,7 @@ function buildActiveOrdersTab() {
                   className: 'tabular-nums text-cyan-accent',
                   style: { fontSize: '0.9375rem', fontWeight: '700' },
                 },
-                `${formatPriceUSD(order.grandTotal)} USD`
+                `${formatChefPrice(order.grandTotal)} ${getChefCurrencyCode()}`
               ),
             ]),
 
@@ -1315,7 +1327,7 @@ function buildArchivedOrdersTab() {
             el(
               'td',
               { className: 'tabular-nums text-cyan-accent', style: { fontWeight: '600' } },
-              `${formatPriceUSD(order.grandTotal)} USD`
+              `${formatChefPrice(order.grandTotal)} ${getChefCurrencyCode()}`
             ),
             el('td', { style: { color: 'var(--ink-secondary)' } }, new Date(order.createdAt).toLocaleDateString()),
             el('td', { style: { textAlign: 'right' } }, [
@@ -1425,8 +1437,8 @@ function buildAnalyticsTab() {
   ]);
 
   const kpis = [
-    { label: 'Total Sales Revenue', value: formatPriceUSD(analyticsData.totalRevenue), color: '#ffffff' },
-    { label: 'Total Net Profit', value: formatPriceUSD(analyticsData.totalNetProfit), color: 'var(--emerald)' },
+    { label: 'Total Sales Revenue', value: formatChefPrice(analyticsData.totalRevenue), color: '#ffffff' },
+    { label: 'Total Net Profit', value: formatChefPrice(analyticsData.totalNetProfit), color: 'var(--emerald)' },
     { label: 'Profit Margin', value: `${analyticsData.marginPct.toFixed(1)}%`, color: 'var(--accent-soft)' },
     { label: 'Completed Orders', value: String(analyticsData.completedCount), color: '#ffffff' },
     { label: 'Total Items Sold', value: String(analyticsData.totalItemsSold), color: '#ffffff' },
@@ -1522,7 +1534,7 @@ function buildAnalyticsTab() {
               el(
                 'td',
                 { className: 'tabular-nums text-cyan-accent', style: { fontWeight: '600' } },
-                `${formatPriceUSD(o.grandTotal)} USD`
+                `${formatChefPrice(o.grandTotal)} ${getChefCurrencyCode()}`
               ),
               el(
                 'td',
@@ -1576,12 +1588,12 @@ function buildAnalyticsTab() {
               el('td', { style: { color: '#ffffff', fontWeight: '500' } }, r.productName),
               el('td', { style: { color: 'var(--ink-secondary)' } }, r.category),
               el('td', { className: 'tabular-nums' }, String(r.quantity)),
-              el('td', { className: 'tabular-nums' }, formatPriceUSD(r.unitPrice)),
-              el('td', { className: 'tabular-nums', style: { color: '#ffffff' } }, formatPriceUSD(r.lineTotal)),
+              el('td', { className: 'tabular-nums' }, formatChefPrice(r.unitPrice)),
+              el('td', { className: 'tabular-nums', style: { color: '#ffffff' } }, formatChefPrice(r.lineTotal)),
               el(
                 'td',
                 { className: 'tabular-nums text-emerald-accent' },
-                `${formatPriceUSD(r.unitProfit)} / ${formatPriceUSD(r.totalProfit)}`
+                `${formatChefPrice(r.unitProfit)} / ${formatChefPrice(r.totalProfit)}`
               ),
               el('td', { className: 'tabular-nums text-cyan-accent' }, r.orderCode),
               el('td', { style: { color: 'var(--ink-secondary)' } }, new Date(r.soldAt).toLocaleString()),
@@ -1597,11 +1609,11 @@ function buildAnalyticsTab() {
               el('td', { colSpan: 2, style: { color: '#ffffff' } }, 'Totals'),
               el('td', { className: 'tabular-nums', style: { color: '#ffffff' } }, String(analyticsData.totalItemsSold)),
               el('td', null),
-              el('td', { className: 'tabular-nums text-cyan-accent' }, `${formatPriceUSD(totalLineSum)} USD`),
+              el('td', { className: 'tabular-nums text-cyan-accent' }, `${formatChefPrice(totalLineSum)} ${getChefCurrencyCode()}`),
               el(
                 'td',
                 { colSpan: 3, className: 'tabular-nums text-emerald-accent' },
-                `Net Profit: ${formatPriceUSD(analyticsData.totalNetProfit)} USD`
+                `Net Profit: ${formatChefPrice(analyticsData.totalNetProfit)} ${getChefCurrencyCode()}`
               ),
             ]),
           ])
@@ -1677,6 +1689,22 @@ function buildSettingsTab() {
 
       el('div', { className: 'chef-form-grid-3' }, [
         el('div', null, [
+          el('label', { for: 'setting-currency', className: 'field-label' }, 'Storefront Currency'),
+          el('select', {
+            id: 'setting-currency',
+            className: 'dark-input',
+            value: state.formCurrency,
+            onChange: (e) => {
+              state.formCurrency = e.target.value === 'EUR' ? 'EUR' : 'USD';
+              state.settingsDirty = true;
+            },
+          }, [
+            el('option', { value: 'USD' }, 'USD — US Dollar'),
+            el('option', { value: 'EUR' }, 'EUR — Euro'),
+          ]),
+          el('p', { style: { fontSize: '0.75rem', color: 'var(--ink-muted)', marginTop: '0.35rem' } }, 'Customer-facing prices update using the latest available USD/EUR exchange rate.'),
+        ]),
+        el('div', null, [
           el('label', { for: 'setting-open-time', className: 'field-label' }, 'Opening Time'),
           el('input', {
             id: 'setting-open-time',
@@ -1703,7 +1731,7 @@ function buildSettingsTab() {
           }),
         ]),
         el('div', null, [
-          el('label', { for: 'setting-delivery-fee', className: 'field-label' }, 'Home Delivery Fee (USD)'),
+          el('label', { for: 'setting-delivery-fee', className: 'field-label' }, 'Home Delivery Fee (base USD)'),
           el('input', {
             id: 'setting-delivery-fee',
             type: 'number',
@@ -1907,7 +1935,7 @@ function buildSettingsTab() {
               el(
                 'td',
                 { className: 'tabular-nums', style: { fontWeight: '600', color: '#ffffff' } },
-                `${formatPriceUSD(p.price)} USD`
+                `${formatChefPrice(p.price)} ${getChefCurrencyCode()}`
               ),
               el(
                 'td',
@@ -2002,7 +2030,7 @@ function renderModals() {
                   el(
                     'h3',
                     { className: 'font-luxury-display tabular-nums', style: { fontSize: '1.25rem', color: '#ffffff', fontWeight: '500' } },
-                    `${order.orderCode} · Expected ${formatPriceUSD(order.grandTotal)} USD`
+                    `${order.orderCode} · Expected ${formatChefPrice(order.grandTotal)} ${getChefCurrencyCode()}`
                   ),
                 ]),
                 el(
