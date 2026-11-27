@@ -6,8 +6,6 @@ import {
   HERO_SHOWCASE_URL,
   ORDERS_CHANNEL_NAME,
   PaymentMethod,
-  SUPPORT_PHONE_DISPLAY,
-  SUPPORT_PHONE_RAW,
 } from './config.js';
 import {
   fetchProducts,
@@ -15,11 +13,6 @@ import {
   lookupCustomerOrders,
   submitCustomerOrder,
 } from './api.js';
-import {
-  fetchStoreSettingsFromFirestore,
-  subscribeStoreSettingsFromFirestore,
-  testConnection,
-} from './firebase.js';
 import { createIcon } from './icons.js';
 import {
   loadCart,
@@ -36,6 +29,19 @@ import {
   formatWhatsAppUrl,
   sanitizeImageUrl,
 } from './utils.js';
+
+function getSupportPhoneDisplay() {
+  return String(state.settings?.supportPhone || DEFAULT_SETTINGS.supportPhone || '0 12 74211223').trim();
+}
+
+function getSupportPhoneDigits() {
+  return getSupportPhoneDisplay().replace(/\D/g, '');
+}
+
+function getSupportWhatsAppNumber() {
+  const digits = getSupportPhoneDigits();
+  return digits.startsWith('0') ? `2${digits.slice(1)}` : digits;
+}
 
 function readInitialSlug() {
   const params = new URLSearchParams(window.location.search);
@@ -115,6 +121,7 @@ const dom = {
   bespokeWhatsappLink: document.getElementById('bespoke-whatsapp-link'),
   footerHours: document.getElementById('footer-hours'),
   footerCopyPhoneBtn: document.getElementById('footer-copy-phone-btn'),
+  footerPhoneLink: document.querySelector('.footer-phone-link'),
   footerWhatsappLink: document.getElementById('footer-whatsapp-link'),
   footerDeliveryChip: document.getElementById('footer-delivery-chip'),
   backToTopBtn: document.getElementById('back-to-top-btn'),
@@ -158,7 +165,7 @@ function initStaticChrome() {
 
   if (dom.bespokeWhatsappLink) {
     dom.bespokeWhatsappLink.href = formatWhatsAppUrl(
-      SUPPORT_PHONE_RAW,
+      getSupportWhatsAppNumber(),
       'Hello DR Atelier, I would like to inquire about a bespoke resin commission.'
     );
   }
@@ -167,7 +174,7 @@ function initStaticChrome() {
 
   if (dom.footerWhatsappLink) {
     dom.footerWhatsappLink.href = formatWhatsAppUrl(
-      SUPPORT_PHONE_RAW,
+      getSupportWhatsAppNumber(),
       'Hello DR Customer Service'
     );
   }
@@ -256,6 +263,18 @@ function renderSettingsUI() {
 
   if (dom.footerHours) {
     dom.footerHours.textContent = `Daily ${s.openTime} – ${s.closeTime}`;
+  }
+  const supportDisplay = getSupportPhoneDisplay();
+  const supportDigits = getSupportPhoneDigits();
+  if (dom.footerPhoneLink) {
+    dom.footerPhoneLink.textContent = supportDisplay;
+    dom.footerPhoneLink.href = `tel:${supportDigits}`;
+  }
+  if (dom.bespokeWhatsappLink) {
+    dom.bespokeWhatsappLink.href = formatWhatsAppUrl(getSupportWhatsAppNumber(), 'Hello DR Atelier, I would like to inquire about a bespoke resin commission.');
+  }
+  if (dom.footerWhatsappLink) {
+    dom.footerWhatsappLink.href = formatWhatsAppUrl(getSupportWhatsAppNumber(), 'Hello DR Customer Service');
   }
   if (dom.footerDeliveryChip) {
     dom.footerDeliveryChip.textContent = `Delivery: ${formatPriceUSD(s.deliveryFee)} USD`;
@@ -1460,7 +1479,7 @@ function renderCartDrawer() {
     };
     renderSupportCopy();
     supportCopyBtn.addEventListener('click', async () => {
-      await copyToClipboard(SUPPORT_PHONE_RAW);
+      await copyToClipboard(getSupportPhoneDigits());
       copiedSupport = true;
       renderSupportCopy();
       window.setTimeout(() => {
@@ -1526,14 +1545,14 @@ function renderCartDrawer() {
             'Customer Service Assistance'
           ),
           el('div', { className: 'footer-service-row' }, [
-            el('span', { className: 'tabular-nums', style: { fontSize: '0.9375rem', fontWeight: '600', color: '#ffffff' } }, SUPPORT_PHONE_DISPLAY),
+            el('span', { className: 'tabular-nums', style: { fontSize: '0.9375rem', fontWeight: '600', color: '#ffffff' } }, getSupportPhoneDisplay()),
             el('div', { className: 'footer-service-btns' }, [
               supportCopyBtn,
               el(
                 'a',
                 {
                   href: formatWhatsAppUrl(
-                    SUPPORT_PHONE_RAW,
+                    getSupportWhatsAppNumber(),
                     `Hello DR Atelier, regarding my order ${order.orderCode}`
                   ),
                   target: '_blank',
@@ -2071,15 +2090,11 @@ function applySettingsIfNewer(candidate) {
 }
 
 async function loadSettings() {
-  const [localResult, remoteResult] = await Promise.allSettled([
-    fetchStoreSettings(),
-    fetchStoreSettingsFromFirestore(),
-  ]);
-  if (localResult.status === 'fulfilled' && localResult.value) {
-    applySettingsIfNewer(localResult.value);
-  }
-  if (remoteResult.status === 'fulfilled' && remoteResult.value) {
-    applySettingsIfNewer(remoteResult.value);
+  try {
+    const settings = await fetchStoreSettings();
+    if (settings) applySettingsIfNewer(settings);
+  } catch {
+    // Keep last known settings during temporary network failures.
   }
 }
 
@@ -2136,7 +2151,7 @@ function bindEvents() {
   dom.refreshCatalogBtn?.addEventListener('click', () => void loadCatalog(true));
 
   dom.footerCopyPhoneBtn?.addEventListener('click', async () => {
-    await copyToClipboard(SUPPORT_PHONE_RAW);
+    await copyToClipboard(getSupportPhoneDigits());
     state.copiedFooterPhone = true;
     renderFooterPhoneButton();
     window.setTimeout(() => {
@@ -2205,13 +2220,10 @@ function boot() {
   renderSettingsUI();
   renderCategories();
   renderCatalog();
-  void testConnection();
   void loadCatalog(false);
   void loadSettings();
-  void subscribeStoreSettingsFromFirestore((remoteSettings) => {
-    applySettingsIfNewer(remoteSettings);
-  }).catch(() => undefined);
-  window.setInterval(() => void loadSettings(), 15000);
+  // Poll server-backed Firestore settings so open storefronts receive updates.
+  window.setInterval(() => void loadSettings(), 5000);
 }
 
 boot();
