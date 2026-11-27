@@ -86,89 +86,262 @@ function saveStore() {
   }
 }
 
-// Public Firestore REST read sync for storeSettings/public (non-PII global settings)
+// Server-side Firestore access using the Railway service-account secret.
+// The service account stays on the server and bypasses client Firestore rules safely.
 let firebasePublicConfig = null;
 try {
   const cfgPath = path.join(ROOT_DIR, 'firebase-applet-config.json');
-  if (fs.existsSync(cfgPath)) {
-    firebasePublicConfig = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  if (fs.existsSync(cfgPath)) firebasePublicConfig = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+} catch { firebasePublicConfig = null; }
+
+let firebaseServiceAccount = null;
+try {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (raw) firebaseServiceAccount = JSON.parse(raw);
+} catch (err) {
+  console.error('FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON:', err.message);
+}
+
+const FIREBASE_PROJECT_ID = firebasePublicConfig?.projectId || firebaseServiceAccount?.project_id || '';
+const FIRESTORE_DATABASE_ID = firebasePublicConfig?.firestoreDatabaseId || '(default)';
+let firebaseAccessToken = '';
+let firebaseTokenExpiresAt = 0;
+const hasFirebaseAdmin = Boolean(
+  firebaseServiceAccount?.client_email &&
+  firebaseServiceAccount?.private_key &&
+  FIREBASE_PROJECT_ID &&
+  (!firebaseServiceAccount.project_id || firebaseServiceAccount.project_id === FIREBASE_PROJECT_ID)
+);
+
+function base64Url(value) {
+  return Buffer.from(value).toString('base64').replace(/=/g, '').replace(/\\+/g, '-').replace(/\\//g, '_');
+}
+
+async function getFirebaseAccessToken() {
+  if (!hasFirebaseAdmin) throw new Error('Firebase service account is not configured or its project does not match firebase-applet-config.json.');
+  if (firebaseAccessToken && Date.now() < firebaseTokenExpiresAt - 60_000) return firebaseAccessToken;
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claim = base64Url(JSON.stringify({
+    iss: firebaseServiceAccount.client_email,
+    scope: 'https://www.googleapis.com/auth/datastore',
+    aud: firebaseServiceAccount.token_uri || 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+  }));
+  const unsigned = header + '.' + claim;
+  const signer = crypto.createSign('RSA-SHA256');
+  signer.update(unsigned);
+  signer.end();
+  const assertion = unsigned + '.' + signer.sign(firebaseServiceAccount.private_key, 'base64url');
+  const tokenUrl = firebaseServiceAccount.token_uri || 'https://oauth2.googleapis.com/token';
+  const response = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion,
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const payload = await response.json();
+  if (!response.ok || !payload.access_token) {
+    throw new Error('Google OAuth token exchange failed: ' + (payload.error_description || payload.error || response.status));
   }
-} catch {
-  firebasePublicConfig = null;
+  firebaseAccessToken = payload.access_token;
+  firebaseTokenExpiresAt = Date.now() + Number(payload.expires_in || 3600) * 1000;
+  return firebaseAccessToken;
 }
 
-let lastFirestoreSettingsSyncAt = 0;
-let firestoreSettingsSyncPromise = null;
-
-function readFirestoreField(field) {
-  if (!field || typeof field !== 'object') return undefined;
-  if ('booleanValue' in field) return Boolean(field.booleanValue);
-  if ('stringValue' in field) return String(field.stringValue);
-  if ('doubleValue' in field) return Number(field.doubleValue);
-  if ('integerValue' in field) return Number(field.integerValue);
-  return undefined;
-}
-
-async function syncStoreSettingsFromFirestorePublicRest(force = false) {
-  if (!firebasePublicConfig?.projectId || !firebasePublicConfig?.firestoreDatabaseId) return;
-  const now = Date.now();
-  if (!force && now - lastFirestoreSettingsSyncAt < 3000) return;
-  if (firestoreSettingsSyncPromise) return firestoreSettingsSyncPromise;
-
-  firestoreSettingsSyncPromise = (async () => {
-    try {
-      const { projectId, firestoreDatabaseId, apiKey } = firebasePublicConfig;
-      const keyQuery = apiKey ? `?key=${encodeURIComponent(apiKey)}` : '';
-      const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
-        projectId
-      )}/databases/${encodeURIComponent(firestoreDatabaseId)}/documents/storeSettings/public${keyQuery}`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
-      lastFirestoreSettingsSyncAt = Date.now();
-      if (!res.ok) return;
-      const doc = await res.json();
-      const fields = doc?.fields;
-      if (!fields) return;
-
-      const remoteUpdatedAt = readFirestoreField(fields.updatedAt);
-      if (!remoteUpdatedAt) return;
-      const remoteMs = Date.parse(remoteUpdatedAt);
-      const localMs = Date.parse(store.settings.updatedAt || '1970-01-01T00:00:00.000Z');
-      if (!Number.isFinite(remoteMs) || (Number.isFinite(localMs) && remoteMs <= localMs)) {
-        return;
-      }
-
-      const isOpen = readFirestoreField(fields.isOpen);
-      const openTime = readFirestoreField(fields.openTime);
-      const closeTime = readFirestoreField(fields.closeTime);
-      const customNote = readFirestoreField(fields.customNote);
-      const deliveryFee = readFirestoreField(fields.deliveryFee);
-      const heroEyebrow = readFirestoreField(fields.heroEyebrow);
-      const heroTitle = readFirestoreField(fields.heroTitle);
-      const heroSubtitle = readFirestoreField(fields.heroSubtitle);
-
-      store.settings = {
-        ...store.settings,
-        ...(typeof isOpen === 'boolean' ? { isOpen } : {}),
-        ...(typeof openTime === 'string' && openTime ? { openTime: openTime.slice(0, 32) } : {}),
-        ...(typeof closeTime === 'string' && closeTime ? { closeTime: closeTime.slice(0, 32) } : {}),
-        ...(typeof customNote === 'string' ? { customNote: customNote.slice(0, 500) } : {}),
-        ...(typeof deliveryFee === 'number' && Number.isFinite(deliveryFee) && deliveryFee >= 0
-          ? { deliveryFee: Number(deliveryFee.toFixed(2)) }
-          : {}),
-        ...(typeof heroEyebrow === 'string' ? { heroEyebrow: heroEyebrow.slice(0, 120) } : {}),
-        ...(typeof heroTitle === 'string' && heroTitle ? { heroTitle: heroTitle.slice(0, 200) } : {}),
-        ...(typeof heroSubtitle === 'string' ? { heroSubtitle: heroSubtitle.slice(0, 300) } : {}),
-        updatedAt: remoteUpdatedAt,
-      };
-      saveStore();
-    } catch {
-      // Keep local settings if Firestore is temporarily unreachable
-    } finally {
-      firestoreSettingsSyncPromise = null;
+function firestoreValue(value) {
+  if (value === null || value === undefined) return { nullValue: null };
+  if (typeof value === 'boolean') return { booleanValue: value };
+  if (typeof value === 'string') return { stringValue: value };
+  if (typeof value === 'number') {
+    return Number.isInteger(value)
+      ? { integerValue: String(value) }
+      : { doubleValue: value };
+  }
+  if (Array.isArray(value)) return { arrayValue: { values: value.map(firestoreValue) } };
+  if (typeof value === 'object') {
+    const fields = {};
+    for (const [key, entry] of Object.entries(value)) {
+      if (entry !== undefined) fields[key] = firestoreValue(entry);
     }
-  })();
+    return { mapValue: { fields } };
+  }
+  return { stringValue: String(value) };
+}
 
-  return firestoreSettingsSyncPromise;
+function fromFirestoreValue(value) {
+  if (!value || typeof value !== 'object') return null;
+  if ('nullValue' in value) return null;
+  if ('booleanValue' in value) return value.booleanValue;
+  if ('stringValue' in value) return value.stringValue;
+  if ('integerValue' in value) return Number(value.integerValue);
+  if ('doubleValue' in value) return Number(value.doubleValue);
+  if ('timestampValue' in value) return value.timestampValue;
+  if ('arrayValue' in value) return (value.arrayValue.values || []).map(fromFirestoreValue);
+  if ('mapValue' in value) return fromFirestoreFields(value.mapValue.fields || {});
+  return null;
+}
+
+function fromFirestoreFields(fields = {}) {
+  return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, fromFirestoreValue(value)]));
+}
+
+async function firestoreRequest(method, documentPath, body = undefined) {
+  const token = await getFirebaseAccessToken();
+  const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(FIREBASE_PROJECT_ID)}/databases/${encodeURIComponent(FIRESTORE_DATABASE_ID)}/documents/${documentPath}`;
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (response.status === 404) return null;
+  const responseText = await response.text();
+  if (!response.ok) throw new Error(`Firestore ${method} ${documentPath} failed (${response.status}): ${responseText.slice(0, 500)}`);
+  return responseText ? JSON.parse(responseText) : {};
+}
+
+async function getFirestoreDocument(collectionName, documentId) {
+  const doc = await firestoreRequest('GET', `${collectionName}/${encodeURIComponent(documentId)}`);
+  return doc?.fields ? fromFirestoreFields(doc.fields) : null;
+}
+
+async function setFirestoreDocument(collectionName, documentId, data) {
+  const fields = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) fields[key] = firestoreValue(value);
+  }
+  return firestoreRequest('PATCH', `${collectionName}/${encodeURIComponent(documentId)}`, { fields });
+}
+
+async function listFirestoreCollection(collectionName) {
+  const all = [];
+  let pageToken = '';
+  do {
+    const query = new URLSearchParams({ pageSize: '1000' });
+    if (pageToken) query.set('pageToken', pageToken);
+    const result = await firestoreRequest('GET', `${collectionName}?${query.toString()}`);
+    for (const doc of result?.documents || []) {
+      const id = doc.name.split('/').pop();
+      all.push({ id, ...fromFirestoreFields(doc.fields || {}) });
+    }
+    pageToken = result?.nextPageToken || '';
+  } while (pageToken);
+  return all;
+}
+
+function normalizeFirestoreSettings(data) {
+  if (!data || typeof data !== 'object') return null;
+  return {
+    isOpen: typeof data.isOpen === 'boolean' ? data.isOpen : store.settings.isOpen,
+    openTime: String(data.openTime || store.settings.openTime).slice(0, 32),
+    closeTime: String(data.closeTime || store.settings.closeTime).slice(0, 32),
+    customNote: String(data.customNote ?? store.settings.customNote).slice(0, 500),
+    deliveryFee: Number.isFinite(Number(data.deliveryFee)) ? Number(data.deliveryFee) : store.settings.deliveryFee,
+    heroEyebrow: String(data.heroEyebrow ?? store.settings.heroEyebrow).slice(0, 120),
+    heroTitle: String(data.heroTitle || store.settings.heroTitle).slice(0, 200),
+    heroSubtitle: String(data.heroSubtitle ?? store.settings.heroSubtitle).slice(0, 300),
+    updatedAt: String(data.updatedAt || new Date().toISOString()),
+  };
+}
+
+async function syncStoreSettingsFromFirestorePublicRest() {
+  if (!hasFirebaseAdmin) return;
+  try {
+    const remote = await getFirestoreDocument('storeSettings', 'public');
+    if (remote) store.settings = { ...store.settings, ...normalizeFirestoreSettings(remote) };
+  } catch (err) {
+    console.error('Firestore settings read failed:', err.message);
+  }
+}
+
+async function syncSettingsToFirestore(settings) {
+  if (!hasFirebaseAdmin) return;
+  await setFirestoreDocument('storeSettings', 'public', {
+    isOpen: Boolean(settings.isOpen),
+    openTime: String(settings.openTime || '10:00 AM').slice(0, 32),
+    closeTime: String(settings.closeTime || '11:00 PM').slice(0, 32),
+    customNote: String(settings.customNote || '').slice(0, 500),
+    deliveryFee: Number(settings.deliveryFee || 0),
+    heroEyebrow: String(settings.heroEyebrow || '').slice(0, 120),
+    heroTitle: String(settings.heroTitle || '').slice(0, 200),
+    heroSubtitle: String(settings.heroSubtitle || '').slice(0, 300),
+    updatedAt: String(settings.updatedAt || new Date().toISOString()),
+  });
+}
+
+function firestoreOrderPayload(order) {
+  return {
+    orderCode: String(order.orderCode || '').slice(0, 32),
+    customerName: String(order.customerName || '').slice(0, 120),
+    customerPhone: String(order.customerPhone || '').slice(0, 32),
+    deliveryAddress: String(order.deliveryAddress || '').slice(0, 400),
+    deliveryNotes: String(order.deliveryNotes || '').slice(0, 400),
+    paymentMethod: String(order.paymentMethod || 'Pay on Delivery').slice(0, 64),
+    senderWalletPhone: String(order.senderWalletPhone || '').slice(0, 32),
+    items: Array.isArray(order.items) ? order.items.slice(0, 50) : [],
+    subtotal: Number(order.subtotal || 0),
+    deliveryFee: Number(order.deliveryFee || 0),
+    grandTotal: Number(order.grandTotal || 0),
+    totalProfit: Number(order.totalProfit || 0),
+    status: String(order.status || 'Pending'),
+    rejectionReason: String(order.rejectionReason || '').slice(0, 400),
+    isPaid: Boolean(order.isPaid),
+    isArchived: Boolean(order.isArchived),
+    isDeletedFromArchive: Boolean(order.isDeletedFromArchive),
+    createdAt: String(order.createdAt || new Date().toISOString()),
+    updatedAt: String(order.updatedAt || new Date().toISOString()),
+    ...(order.completedAt ? { completedAt: String(order.completedAt) } : {}),
+  };
+}
+
+async function syncOrderToFirestore(order) {
+  if (!hasFirebaseAdmin) return;
+  await setFirestoreDocument('orders', order.id, firestoreOrderPayload(order));
+}
+
+async function syncFirestoreOnBoot() {
+  if (!hasFirebaseAdmin) {
+    console.warn('Firebase Admin persistence is disabled: FIREBASE_SERVICE_ACCOUNT_JSON is unavailable or invalid.');
+    return;
+  }
+  try {
+    // Firestore is the source of truth. Import local records only when the remote collection is empty.
+    const remoteSettings = await getFirestoreDocument('storeSettings', 'public');
+    if (remoteSettings) {
+      store.settings = { ...store.settings, ...normalizeFirestoreSettings(remoteSettings) };
+    } else {
+      await syncSettingsToFirestore(store.settings);
+    }
+
+    const remoteOrders = await listFirestoreCollection('orders');
+    if (remoteOrders.length) {
+      store.orders = remoteOrders.map((row) => ({
+        ...row,
+        id: row.id,
+        items: Array.isArray(row.items) ? row.items : [],
+      })).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      const maxNum = store.orders.reduce((max, order) => {
+        const number = Number(String(order.orderCode || '').replace(/\\D/g, ''));
+        return Number.isFinite(number) && number > max ? number : max;
+      }, 1000);
+      store.nextOrderSeq = Math.max(store.nextOrderSeq, maxNum + 1);
+    } else {
+      for (const order of store.orders) await syncOrderToFirestore(order);
+    }
+    saveStore();
+    console.log(`Firebase Firestore connected: project=${FIREBASE_PROJECT_ID}, database=${FIRESTORE_DATABASE_ID}, orders=${store.orders.length}`);
+  } catch (err) {
+    console.error('Firebase Firestore initialization failed:', err.message);
+  }
 }
 
 // Optional Supabase PostgREST synchronization when environment secrets are configured
@@ -887,7 +1060,7 @@ async function startServer() {
 
     store.orders.unshift(order);
     saveStore();
-    void syncOrderToSupabase(order);
+    void syncOrderToFirestore(order).catch((err) => console.error('Firestore order write failed:', err.message));
 
     res.status(201).json({ order: toPublicOrder(order) });
   });
@@ -1024,7 +1197,7 @@ async function startServer() {
           o.isDeletedFromArchive = true;
           o.updatedAt = nowIso;
           count++;
-          void syncOrderToSupabase(o);
+          void syncOrderToFirestore(o).catch((err) => console.error('Firestore order update failed:', err.message));
         }
       }
     } else if (Array.isArray(body.ids)) {
@@ -1090,7 +1263,7 @@ async function startServer() {
       updatedAt: new Date().toISOString(),
     };
     saveStore();
-    void syncSettingsToSupabase(store.settings);
+    void syncSettingsToFirestore(store.settings).catch((err) => console.error('Firestore settings write failed:', err.message));
     res.json({ settings: store.settings });
   });
 
@@ -1176,7 +1349,7 @@ async function startServer() {
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 66_000;
 
-  void syncStoreSettingsFromFirestorePublicRest(true);
+  await syncFirestoreOnBoot();
   void syncFromSupabaseOnBoot();
 }
 
