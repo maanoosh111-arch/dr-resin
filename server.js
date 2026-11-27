@@ -13,25 +13,6 @@ const SPREADSHEET_ID =
 const SUPPORT_PHONE = '0 12 74211223';
 const CURRENCY = 'EUR';
 const BRAND_NAME = 'DR - Premium Resin Products';
-const DEFAULT_EUR_TO_USD_RATE = 1.09;
-let exchangeRateCache = { rate: DEFAULT_EUR_TO_USD_RATE, expiresAt: 0 };
-
-async function getEurToUsdRate() {
-  if (Date.now() < exchangeRateCache.expiresAt) return exchangeRateCache.rate;
-  try {
-    const response = await fetch('https://api.frankfurter.app/latest?from=EUR&to=USD', { signal: AbortSignal.timeout(5000) });
-    if (!response.ok) throw new Error(`Exchange-rate service returned ${response.status}`);
-    const data = await response.json();
-    const rate = Number(data?.rates?.USD);
-    if (!Number.isFinite(rate) || rate <= 0) throw new Error('Invalid EUR/USD exchange rate');
-    exchangeRateCache = { rate, expiresAt: Date.now() + 6 * 60 * 60 * 1000 };
-  } catch (err) {
-    console.warn('Live EUR exchange rate unavailable; using EUR/USD fallback rate:', err.message);
-    exchangeRateCache = { rate: DEFAULT_EUR_TO_USD_RATE, expiresAt: Date.now() + 15 * 60 * 1000 };
-  }
-  return exchangeRateCache.rate;
-}
-
 const SESSION_SECRET =
   process.env.SESSION_SECRET && process.env.SESSION_SECRET.length >= 16
     ? process.env.SESSION_SECRET
@@ -73,7 +54,7 @@ function loadStore() {
         settings: {
           ...DEFAULT_STORE.settings,
           ...(parsed.settings || {}),
-          currency: ['USD', 'EUR'].includes(parsed.settings?.currency) ? parsed.settings.currency : CURRENCY,
+          currency: CURRENCY,
           brandName: BRAND_NAME,
         },
         orders: Array.isArray(parsed.orders) ? parsed.orders : [],
@@ -267,7 +248,7 @@ function normalizeFirestoreSettings(data) {
     heroTitle: String(data.heroTitle || store.settings.heroTitle).slice(0, 200),
     heroSubtitle: String(data.heroSubtitle ?? store.settings.heroSubtitle).slice(0, 300),
     supportPhone: String(data.supportPhone || store.settings.supportPhone || SUPPORT_PHONE).slice(0, 32),
-    currency: ['USD', 'EUR'].includes(data.currency) ? data.currency : (store.settings.currency || CURRENCY),
+    currency: CURRENCY,
     updatedAt: String(data.updatedAt || new Date().toISOString()),
   };
 }
@@ -294,7 +275,7 @@ async function syncSettingsToFirestore(settings) {
     heroTitle: String(settings.heroTitle || '').slice(0, 200),
     heroSubtitle: String(settings.heroSubtitle || '').slice(0, 300),
     supportPhone: String(settings.supportPhone || SUPPORT_PHONE).slice(0, 32),
-    currency: ['USD', 'EUR'].includes(settings.currency) ? settings.currency : CURRENCY,
+    currency: CURRENCY,
     updatedAt: String(settings.updatedAt || new Date().toISOString()),
   });
 }
@@ -941,8 +922,7 @@ async function startServer() {
 
   app.get('/api/settings', async (_req, res) => {
     await syncStoreSettingsFromFirestorePublicRest();
-    const eurToUsdRate = await getEurToUsdRate();
-    res.json({ ...store.settings, eurToUsdRate });
+    res.json({ ...store.settings, currency: CURRENCY });
   });
 
   app.get('/api/orders', (req, res) => {
@@ -1281,7 +1261,7 @@ async function startServer() {
     const requestedPhone = typeof body.supportPhone === 'string' ? body.supportPhone.trim().slice(0, 32) : store.settings.supportPhone;
     const phoneDigits = requestedPhone.replace(/\D/g, '');
     const supportPhone = phoneDigits.length >= 8 && phoneDigits.length <= 15 ? requestedPhone : store.settings.supportPhone;
-    const currency = ['USD', 'EUR'].includes(body.currency) ? body.currency : (store.settings.currency || CURRENCY);
+    const currency = CURRENCY;
 
     store.settings = {
       ...store.settings,
