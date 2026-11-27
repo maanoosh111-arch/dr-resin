@@ -55,7 +55,6 @@ function loadStore() {
         settings: {
           ...DEFAULT_STORE.settings,
           ...(parsed.settings || {}),
-          supportPhone: SUPPORT_PHONE,
           currency: CURRENCY,
           brandName: BRAND_NAME,
         },
@@ -249,6 +248,7 @@ function normalizeFirestoreSettings(data) {
     heroEyebrow: String(data.heroEyebrow ?? store.settings.heroEyebrow).slice(0, 120),
     heroTitle: String(data.heroTitle || store.settings.heroTitle).slice(0, 200),
     heroSubtitle: String(data.heroSubtitle ?? store.settings.heroSubtitle).slice(0, 300),
+    supportPhone: String(data.supportPhone || store.settings.supportPhone || SUPPORT_PHONE).slice(0, 32),
     updatedAt: String(data.updatedAt || new Date().toISOString()),
   };
 }
@@ -274,6 +274,7 @@ async function syncSettingsToFirestore(settings) {
     heroEyebrow: String(settings.heroEyebrow || '').slice(0, 120),
     heroTitle: String(settings.heroTitle || '').slice(0, 200),
     heroSubtitle: String(settings.heroSubtitle || '').slice(0, 300),
+    supportPhone: String(settings.supportPhone || SUPPORT_PHONE).slice(0, 32),
     updatedAt: String(settings.updatedAt || new Date().toISOString()),
   });
 }
@@ -1224,7 +1225,7 @@ async function startServer() {
     res.json({ deletedCount: count });
   });
 
-  app.put('/api/chef/settings', requireChefAuth, (req, res) => {
+  app.put('/api/chef/settings', requireChefAuth, async (req, res) => {
     const body = req.body || {};
     const isOpen = typeof body.isOpen === 'boolean' ? body.isOpen : store.settings.isOpen;
     const openTime =
@@ -1256,6 +1257,9 @@ async function startServer() {
       typeof body.heroSubtitle === 'string'
         ? body.heroSubtitle.trim().slice(0, 300)
         : store.settings.heroSubtitle;
+    const requestedPhone = typeof body.supportPhone === 'string' ? body.supportPhone.trim().slice(0, 32) : store.settings.supportPhone;
+    const phoneDigits = requestedPhone.replace(/\D/g, '');
+    const supportPhone = phoneDigits.length >= 8 && phoneDigits.length <= 15 ? requestedPhone : store.settings.supportPhone;
 
     store.settings = {
       ...store.settings,
@@ -1267,11 +1271,20 @@ async function startServer() {
       heroEyebrow,
       heroTitle,
       heroSubtitle,
+      supportPhone,
       updatedAt: new Date().toISOString(),
     };
     saveStore();
-    void syncSettingsToFirestore(store.settings).catch((err) => console.error('Firestore settings write failed:', err.message));
-    res.json({ settings: store.settings });
+    let globalSync = false;
+    try {
+      if (hasFirebaseAdmin) {
+        await syncSettingsToFirestore(store.settings);
+        globalSync = true;
+      }
+    } catch (err) {
+      console.error('Firestore settings write failed:', err.message);
+    }
+    res.json({ settings: store.settings, globalSync });
   });
 
   app.post('/api/chef/sales-profits/reset', requireChefAuth, async (_req, res) => {
