@@ -539,7 +539,7 @@ async function handleSaveSettings(e) {
 
     if (res.ok && res.data?.settings) {
       const saved = res.data.settings;
-      state.settings = saved;
+      state.settings = { ...state.settings, ...saved };
       state.settingsDirty = false;
 
       state.formSupportPhone = saved.supportPhone || DEFAULT_SETTINGS.supportPhone;
