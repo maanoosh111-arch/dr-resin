@@ -322,6 +322,9 @@ async function syncFirestoreOnBoot() {
       await syncSettingsToFirestore(store.settings);
     }
 
+    const remoteMeta = await getFirestoreDocument('chefMeta', 'analytics');
+    if (remoteMeta?.analyticsBaselineAt) store.analyticsBaselineAt = remoteMeta.analyticsBaselineAt;
+
     const remoteOrders = await listFirestoreCollection('orders');
     if (remoteOrders.length) {
       store.orders = remoteOrders.map((row) => ({
@@ -892,7 +895,7 @@ async function startServer() {
   app.use(express.json({ limit: '20mb' }));
 
   app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', uptime: process.uptime() });
+    res.json({ status: 'ok', uptime: process.uptime(), firestore: hasFirebaseAdmin ? 'configured' : 'disabled' });
   });
 
   app.get('/favicon.ico', (_req, res) => {
@@ -1060,7 +1063,11 @@ async function startServer() {
 
     store.orders.unshift(order);
     saveStore();
-    void syncOrderToFirestore(order).catch((err) => console.error('Firestore order write failed:', err.message));
+    try {
+      await syncOrderToFirestore(order);
+    } catch (err) {
+      console.error('Firestore order write failed; order remains in local recovery store:', err.message);
+    }
 
     res.status(201).json({ order: toPublicOrder(order) });
   });
@@ -1168,7 +1175,7 @@ async function startServer() {
 
     order.updatedAt = new Date().toISOString();
     saveStore();
-    void syncOrderToSupabase(order);
+    void syncOrderToFirestore(order).catch((err) => console.error('Firestore order write failed:', err.message));
     res.json({ order });
   });
 
@@ -1182,7 +1189,7 @@ async function startServer() {
     order.isArchived = true;
     order.updatedAt = new Date().toISOString();
     saveStore();
-    void syncOrderToSupabase(order);
+    void syncOrderToFirestore(order).catch((err) => console.error('Firestore order write failed:', err.message));
     res.json({ deletedId: order.id });
   });
 
@@ -1208,7 +1215,7 @@ async function startServer() {
           o.isArchived = true;
           o.updatedAt = nowIso;
           count++;
-          void syncOrderToSupabase(o);
+          void syncOrderToFirestore(o).catch((err) => console.error('Firestore order update failed:', err.message));
         }
       }
     }
@@ -1267,9 +1274,19 @@ async function startServer() {
     res.json({ settings: store.settings });
   });
 
-  app.post('/api/chef/sales-profits/reset', requireChefAuth, (_req, res) => {
+  app.post('/api/chef/sales-profits/reset', requireChefAuth, async (_req, res) => {
     store.analyticsBaselineAt = new Date().toISOString();
     saveStore();
+    if (hasFirebaseAdmin) {
+      try {
+        await setFirestoreDocument('chefMeta', 'analytics', {
+          analyticsBaselineAt: store.analyticsBaselineAt,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('Firestore analytics baseline write failed:', err.message);
+      }
+    }
     res.json({ analyticsBaselineAt: store.analyticsBaselineAt });
   });
 
