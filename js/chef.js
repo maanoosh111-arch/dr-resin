@@ -29,11 +29,11 @@ import {
 } from './utils.js';
 
 function formatChefPrice(amount) {
-  return formatStorePrice(amount, state.settings?.currency || state.formCurrency || 'EUR', state.settings?.eurToUsdRate || 1.09);
+  return formatStorePrice(amount);
 }
 
 function getChefCurrencyCode() {
-  return state.settings?.currency || state.formCurrency || 'EUR';
+  return 'EUR';
 }
 
 const state = {
@@ -65,7 +65,6 @@ const state = {
   formHeroTitle: DEFAULT_SETTINGS.heroTitle,
   formHeroSubtitle: DEFAULT_SETTINGS.heroSubtitle,
   formSupportPhone: DEFAULT_SETTINGS.supportPhone,
-  formCurrency: DEFAULT_SETTINGS.currency,
   settingsDirty: false,
   settingsSaving: false,
   settingsRevision: 0,
@@ -406,7 +405,6 @@ async function refreshSettings() {
       state.formHeroTitle = chosen.heroTitle ?? DEFAULT_SETTINGS.heroTitle;
       state.formHeroSubtitle = chosen.heroSubtitle ?? DEFAULT_SETTINGS.heroSubtitle;
       state.formSupportPhone = chosen.supportPhone ?? DEFAULT_SETTINGS.supportPhone;
-      state.formCurrency = chosen.currency === 'USD' ? 'USD' : 'EUR';
     }
     updateChromeOnly();
   } catch {
@@ -537,7 +535,6 @@ async function handleSaveSettings(e) {
         heroTitle: state.formHeroTitle,
         heroSubtitle: state.formHeroSubtitle,
         supportPhone: state.formSupportPhone,
-        currency: state.formCurrency,
       },
       state.bearerToken
     );
@@ -548,7 +545,6 @@ async function handleSaveSettings(e) {
       state.settingsDirty = false;
 
       state.formSupportPhone = saved.supportPhone || DEFAULT_SETTINGS.supportPhone;
-      state.formCurrency = saved.currency === 'USD' ? 'USD' : 'EUR';
       state.settingsSavedToast = res.data.globalSync
         ? 'Saved and published globally. Changes will appear for storefront visitors worldwide.'
         : 'Saved on this server, but global Firestore sync is unavailable. Check the server Firebase configuration.';
@@ -1693,22 +1689,6 @@ function buildSettingsTab() {
         : null,
 
       el('div', { className: 'chef-form-grid-3' }, [
-        el('div', null, [
-          el('label', { for: 'setting-currency', className: 'field-label' }, 'Storefront Currency'),
-          el('select', {
-            id: 'setting-currency',
-            className: 'dark-input',
-            value: state.formCurrency,
-            onChange: (e) => {
-              state.formCurrency = e.target.value === 'USD' ? 'USD' : 'EUR';
-              state.settingsDirty = true;
-            },
-          }, [
-            el('option', { value: 'USD' }, 'USD — US Dollar'),
-            el('option', { value: 'EUR' }, 'EUR — Euro'),
-          ]),
-          el('p', { style: { fontSize: '0.75rem', color: 'var(--ink-muted)', marginTop: '0.35rem' } }, 'Google Sheets product prices are maintained in EUR. Choose EUR or USD for customer-facing display; USD uses the latest EUR/USD exchange rate.'),
-        ]),
         el('div', null, [
           el('label', { for: 'setting-open-time', className: 'field-label' }, 'Opening Time'),
           el('input', {
