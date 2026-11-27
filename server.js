@@ -114,7 +114,7 @@ const hasFirebaseAdmin = Boolean(
 );
 
 function base64Url(value) {
-  return Buffer.from(value).toString('base64').replace(/=/g, '').replace(/\\+/g, '-').replace(/\\//g, '_');
+  return Buffer.from(value).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 }
 
 async function getFirebaseAccessToken() {
@@ -333,7 +333,7 @@ async function syncFirestoreOnBoot() {
         items: Array.isArray(row.items) ? row.items : [],
       })).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
       const maxNum = store.orders.reduce((max, order) => {
-        const number = Number(String(order.orderCode || '').replace(/\\D/g, ''));
+        const number = Number(String(order.orderCode || '').replace(/\D/g, ''));
         return Number.isFinite(number) && number > max ? number : max;
       }, 1000);
       store.nextOrderSeq = Math.max(store.nextOrderSeq, maxNum + 1);
