@@ -1,16 +1,11 @@
 import { ORDERS_CHANNEL_NAME } from './config.js';
 
-export function formatStorePrice(amount, currency = 'EUR', eurToUsdRate = 1) {
+export function formatStorePrice(amount) {
   const baseAmount = Number.isFinite(Number(amount)) ? Number(amount) : 0;
-  const normalizedCurrency = currency === 'USD' ? 'USD' : 'EUR';
-  const rate = Number.isFinite(Number(eurToUsdRate)) && Number(eurToUsdRate) > 0 ? Number(eurToUsdRate) : 1.09;
-  const convertedAmount = normalizedCurrency === 'USD' ? baseAmount * rate : baseAmount;
   return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: normalizedCurrency,
-    minimumFractionDigits: convertedAmount % 1 === 0 ? 0 : 2,
+    minimumFractionDigits: baseAmount % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
-  }).format(convertedAmount);
+  }).format(baseAmount);
 }
 
 export function generateProductSlug(name, fallbackId) {
