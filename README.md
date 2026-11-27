@@ -14,7 +14,7 @@ Full-stack e-commerce storefront and private Atelier/Chef management console bui
 │   └── admin.css                # Atelier Sidebar & Console CSS3 layouts & components
 ├── js/
 │   ├── config.js                # Storefront defaults, asset URLs, status constants, optional API base URL
-│   ├── utils.js                 # Safe DOM builder (`el`), USD formatting, WhatsApp links, Web Audio chime
+│   ├── utils.js                 # Safe DOM builder (`el`), EUR-based price formatting with optional USD conversion, WhatsApp links, Web Audio chime
 │   ├── icons.js                 # Pure inline SVG icons (zero icon libraries)
 │   ├── firebase.js              # Official Firebase v13.4.0 CDN ES module client & Firestore sync
 │   ├── store.js                 # LocalStorage persistence for shopping bag & tracked order codes
@@ -46,7 +46,7 @@ Full-stack e-commerce storefront and private Atelier/Chef management console bui
   - **Active Orders**: status filters (`All`, `Pending`, `In Progress`, `Finished`, `Rejected`), 80mm thermal receipt printing, `Start Preparing`, `Confirm Finished & Delivered`, `Reject` (with mandatory reason), and `Archive Order`.
   - **Archived Orders**: multi-select checkboxes, `Delete Selected`, `Clear All Archive`, receipt print, and permanent delete confirmation modal.
   - **Sales & Profits**: `Today` / `Last 7 Days` / `Last 30 Days` periods, 5 KPI cards (from non-deleted `Finished` orders only), Completed Orders & Sold Products Log tables, and `Reset Analytics Baseline`.
-  - **Store Settings & Catalog**: Store Open/Closed toggle, hours, delivery fee, announcement note, **Hero Section Text editor** (saved with dirty-state polling protection), live Google Sheets refresh, and optional Google Sign-In Cloud Sync to Firestore.
+  - **Store Settings & Catalog**: Store Open/Closed toggle, hours, delivery fee (EUR base), announcement note, **Hero Section Text editor** (saved with dirty-state polling protection), live Google Sheets refresh, EUR-based product pricing with optional USD display conversion, and optional Google Sign-In Cloud Sync to Firestore.
 
 ## Environment Variables
 
