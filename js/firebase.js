@@ -136,7 +136,7 @@ function normalizeStoreSettingsDoc(data) {
         ? data.heroTitle.slice(0, 200)
         : 'NATURAL WALNUT & DEEP OCEAN EPOXY RESIN',
     heroSubtitle: typeof data.heroSubtitle === 'string' ? data.heroSubtitle.slice(0, 300) : '',
-    currency: data.currency === 'USD' ? 'USD' : 'EUR',
+    currency: 'EUR',
     updatedAt: String(data.updatedAt || '1970-01-01T00:00:00.000Z'),
   };
 }
@@ -198,7 +198,7 @@ export async function syncSettingsToFirestore(settings) {
       heroEyebrow: String(settings.heroEyebrow || '').slice(0, 120),
       heroTitle: String(settings.heroTitle || '').slice(0, 200),
       heroSubtitle: String(settings.heroSubtitle || '').slice(0, 300),
-      currency: settings.currency === 'USD' ? 'USD' : 'EUR',
+      currency: 'EUR',
       updatedAt: String(settings.updatedAt || new Date().toISOString()).slice(0, 64),
     });
     return true;
