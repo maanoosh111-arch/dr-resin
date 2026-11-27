@@ -17,13 +17,6 @@ import {
   saveChefSettings,
   submitChefAuth,
 } from './api.js';
-import {
-  fetchChefMetaFromFirestore,
-  fetchOrdersFromFirestore,
-  isFirebaseVerifiedUser,
-  syncAnalyticsBaselineToFirestore,
-  syncOrderToFirestore,
-} from './firebase.js';
 import { createIcon } from './icons.js';
 import {
   broadcastOrdersUpdate,
@@ -353,10 +346,7 @@ function handlePrintOrder(order) {
 async function refreshOrders() {
   if (!state.authenticated) return;
   try {
-    const [res, cloudVerified] = await Promise.all([
-      fetchChefOrders(state.bearerToken),
-      isFirebaseVerifiedUser(),
-    ]);
+    const res = await fetchChefOrders(state.bearerToken);
     if (res.status === 401) {
       state.authenticated = false;
       stopBackgroundSync();
@@ -366,73 +356,23 @@ async function refreshOrders() {
     if (!res.ok || !res.data) return;
 
     const serverOrders = Array.isArray(res.data.orders) ? res.data.orders : [];
-    let mergedOrders = serverOrders;
-    let baselineAt = res.data.analyticsBaselineAt || null;
-
-    if (cloudVerified) {
-      try {
-        const [cloudOrders, cloudMeta] = await Promise.all([
-          fetchOrdersFromFirestore(),
-          fetchChefMetaFromFirestore().catch(() => null),
-        ]);
-
-        const byId = new Map();
-        for (const co of cloudOrders) {
-          byId.set(co.id, co);
-        }
-        for (const so of serverOrders) {
-          const existing = byId.get(so.id);
-          if (!existing) {
-            byId.set(so.id, so);
-            void syncOrderToFirestore(so).catch(() => undefined);
-          } else {
-            const sMs = Date.parse(so.updatedAt || so.createdAt || 0);
-            const cMs = Date.parse(existing.updatedAt || existing.createdAt || 0);
-            if (sMs > cMs) {
-              byId.set(so.id, so);
-              void syncOrderToFirestore(so).catch(() => undefined);
-            } else if ((!existing.items || existing.items.length === 0) && Array.isArray(so.items) && so.items.length > 0) {
-              byId.set(so.id, { ...existing, items: so.items });
-            }
-          }
-        }
-
-        mergedOrders = Array.from(byId.values())
-          .filter((o) => !o.isDeletedFromArchive)
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        if (cloudMeta?.analyticsBaselineAt) {
-          const cloudBaseMs = Date.parse(cloudMeta.analyticsBaselineAt);
-          const localBaseMs = Date.parse(baselineAt || '1970-01-01T00:00:00.000Z');
-          if (Number.isFinite(cloudBaseMs) && (!Number.isFinite(localBaseMs) || cloudBaseMs > localBaseMs)) {
-            baselineAt = cloudMeta.analyticsBaselineAt;
-          }
-        }
-      } catch {
-        // Keep server orders if Firestore read fails transiently
-      }
-    }
-
-    state.orders = mergedOrders;
-    state.analyticsBaselineAt = baselineAt;
+    state.orders = serverOrders;
+    state.analyticsBaselineAt = res.data.analyticsBaselineAt || null;
 
     if (state.knownOrderIds === null) {
-      state.knownOrderIds = new Set(mergedOrders.map((o) => o.id));
+      state.knownOrderIds = new Set(serverOrders.map((o) => o.id));
     } else {
       const prevIds = state.knownOrderIds;
-      const brandNew = mergedOrders.filter((o) => !prevIds.has(o.id));
+      const brandNew = serverOrders.filter((o) => !prevIds.has(o.id));
       if (brandNew.length > 0) {
-        state.knownOrderIds = new Set(mergedOrders.map((o) => o.id));
+        state.knownOrderIds = new Set(serverOrders.map((o) => o.id));
         showToast(`New order received: ${brandNew[0].orderCode}`);
-        if (!state.muted) {
-          void playNewOrderChime();
-        }
+        if (!state.muted) void playNewOrderChime();
       }
     }
-
     updateDashboardAfterPoll();
   } catch {
-    // Ignore transient network failures
+    // Ignore transient network failures.
   }
 }
 
@@ -514,105 +454,49 @@ function stopBackgroundSync() {
 }
 
 async function updateOrder(orderId, patch) {
-  const [res, cloudVerified] = await Promise.all([
-    patchChefOrder(orderId, patch, state.bearerToken),
-    isFirebaseVerifiedUser(),
-  ]);
-
-  let updated = res.ok && res.data?.order ? res.data.order : null;
-  if (!updated && res.status === 404 && cloudVerified) {
-    const existing = state.orders.find((o) => o.id === orderId);
-    if (existing) {
-      const nowIso = new Date().toISOString();
-      const nextStatus = patch.status || existing.status;
-      updated = {
-        ...existing,
-        ...(patch.status ? { status: patch.status } : {}),
-        ...(typeof patch.isArchived === 'boolean' ? { isArchived: patch.isArchived } : {}),
-        rejectionReason:
-          nextStatus === 'Rejected'
-            ? patch.rejectionReason || existing.rejectionReason || ''
-            : patch.status
-            ? ''
-            : existing.rejectionReason || '',
-        ...(nextStatus === 'Finished'
-          ? { isPaid: true, completedAt: existing.completedAt || nowIso }
-          : {}),
-        updatedAt: nowIso,
-      };
-    }
+  const res = await patchChefOrder(orderId, patch, state.bearerToken);
+  const updated = res.ok && res.data?.order ? res.data.order : null;
+  if (!updated) {
+    showToast('Unable to update this order. Please refresh and try again.');
+    return;
   }
-
-  if (updated) {
-    state.orders = state.orders.map((o) => (o.id === updated.id ? updated : o));
-    broadcastOrdersUpdate({ orderId: updated.id });
-    updateChromeOnly();
-    renderMainSection();
-    if (cloudVerified) {
-      void syncOrderToFirestore(updated).catch(() => undefined);
-    }
-  }
+  state.orders = state.orders.map((o) => (o.id === updated.id ? updated : o));
+  broadcastOrdersUpdate({ orderId: updated.id });
+  updateChromeOnly();
+  renderMainSection();
 }
 
 async function executeDeleteOrder() {
   const action = state.confirmDeleteAction;
   if (!action) return;
 
-  const cloudVerified = await isFirebaseVerifiedUser();
-  const nowIso = new Date().toISOString();
-
   if (action.type === 'single') {
     const res = await deleteChefOrder(action.order.id, state.bearerToken);
-    if (res.ok || (res.status === 404 && cloudVerified)) {
-      if (cloudVerified) {
-        void syncOrderToFirestore({
-          ...action.order,
-          isArchived: true,
-          isDeletedFromArchive: true,
-          updatedAt: nowIso,
-        }).catch(() => undefined);
-      }
+    if (res.ok) {
       state.orders = state.orders.filter((o) => o.id !== action.order.id);
       state.selectedArchiveIds.delete(action.order.id);
       broadcastOrdersUpdate();
+    } else {
+      showToast('Unable to delete this order. Please try again.');
     }
   } else if (action.type === 'bulk') {
     const res = await bulkDeleteChefOrders({ ids: action.ids }, state.bearerToken);
-    if (res.ok || cloudVerified) {
+    if (res.ok) {
       const idSet = new Set(action.ids);
-      if (cloudVerified) {
-        for (const o of state.orders) {
-          if (idSet.has(o.id)) {
-            void syncOrderToFirestore({
-              ...o,
-              isArchived: true,
-              isDeletedFromArchive: true,
-              updatedAt: nowIso,
-            }).catch(() => undefined);
-          }
-        }
-      }
       state.orders = state.orders.filter((o) => !idSet.has(o.id));
       state.selectedArchiveIds.clear();
       broadcastOrdersUpdate();
+    } else {
+      showToast('Unable to delete the selected orders. Please try again.');
     }
   } else if (action.type === 'clearAll') {
     const res = await bulkDeleteChefOrders({ allArchived: true }, state.bearerToken);
-    if (res.ok || cloudVerified) {
-      if (cloudVerified) {
-        for (const o of state.orders) {
-          if (o.isArchived) {
-            void syncOrderToFirestore({
-              ...o,
-              isDeletedFromArchive: true,
-              updatedAt: nowIso,
-            }).catch(() => undefined);
-          }
-        }
-      }
+    if (res.ok) {
       state.orders = state.orders.filter((o) => !o.isArchived);
       state.selectedArchiveIds.clear();
       broadcastOrdersUpdate();
+    } else {
+      showToast('Unable to clear the archive. Please try again.');
     }
   }
 
@@ -669,9 +553,6 @@ async function handleResetAnalyticsBaseline() {
   const res = await resetChefAnalyticsBaseline(state.bearerToken);
   if (res.ok && res.data) {
     state.analyticsBaselineAt = res.data.analyticsBaselineAt || new Date().toISOString();
-    if (await isFirebaseVerifiedUser()) {
-      void syncAnalyticsBaselineToFirestore(state.analyticsBaselineAt).catch(() => undefined);
-    }
     showToast('Analytics period baseline reset.');
     if (state.activeTab === 'analytics') renderMainSection();
   }
