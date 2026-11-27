@@ -31,11 +31,11 @@ import {
 } from './utils.js';
 
 function formatStoreMoney(amount) {
-  return formatStorePrice(amount, state.settings?.currency || 'EUR', state.settings?.eurToUsdRate || 1.09);
+  return formatStorePrice(amount);
 }
 
 function getStoreCurrencyCode() {
-  return state.settings?.currency || 'EUR';
+  return 'EUR';
 }
 
 function getSupportPhoneDisplay() {
