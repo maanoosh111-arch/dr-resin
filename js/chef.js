@@ -386,13 +386,15 @@ async function refreshOrders() {
 }
 
 async function refreshSettings() {
+  // Never let the 4-second background poll overwrite an edit or an in-flight save.
+  if (state.settingsSaving || state.settingsDirty) return;
   try {
     // Server-side Firebase Admin reads the shared settings document.
     const chosen = await fetchStoreSettings();
-    if (!chosen) return;
+    if (!chosen || state.settingsSaving || state.settingsDirty) return;
 
     state.settings = chosen;
-    if (!state.settingsDirty) {
+    if (!state.settingsDirty && !state.settingsSaving) {
       state.formIsOpen = Boolean(chosen.isOpen);
       state.formOpenTime = chosen.openTime || DEFAULT_SETTINGS.openTime;
       state.formCloseTime = chosen.closeTime || DEFAULT_SETTINGS.closeTime;
@@ -1695,7 +1697,7 @@ function buildSettingsTab() {
             className: 'dark-input',
             value: state.formCurrency,
             onChange: (e) => {
-              state.formCurrency = e.target.value === 'EUR' ? 'EUR' : 'USD';
+              state.formCurrency = e.target.value === 'USD' ? 'USD' : 'EUR';
               state.settingsDirty = true;
             },
           }, [
